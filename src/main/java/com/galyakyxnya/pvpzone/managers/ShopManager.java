@@ -1,7 +1,7 @@
 package com.galyakyxnya.pvpzone.managers;
 
 import com.galyakyxnya.pvpzone.Main;
-import org.bukkit.configuration.file.FileConfiguration;
+
 import java.util.HashMap;
 import java.util.Map;
 

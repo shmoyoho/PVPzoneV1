@@ -8,27 +8,30 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 public class PlayerQuitListener implements Listener {
     private final Main plugin;
-    
+
     public PlayerQuitListener(Main plugin) {
         this.plugin = plugin;
     }
-    
+
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        
-        // Если игрок был в PvP зоне, восстанавливаем инвентарь
+
+        // Если игрок был в зоне - восстанавливаем инвентарь
         if (plugin.getZoneManager().isPlayerInZone(player)) {
             plugin.getPlayerDataManager().restoreOriginalInventory(player);
             plugin.getZoneManager().removePlayerFromZone(player);
         }
-        
-        // Сохраняем данные игрока
+
+        // Удаляем из трекера зон
+        PlayerMoveListener moveListener = plugin.getPlayerMoveListener();
+        if (moveListener != null) {
+            moveListener.removePlayer(player.getUniqueId());
+        }
+
+        // Сохраняем данные
         plugin.getPlayerDataManager().savePlayerData(
-            plugin.getPlayerDataManager().getPlayerData(player)
+                plugin.getPlayerDataManager().getPlayerData(player)
         );
-        
-        // Удаляем из памяти
-        plugin.getPlayerDataManager().removePlayerData(player.getUniqueId());
     }
 }

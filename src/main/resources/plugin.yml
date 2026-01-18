@@ -3,7 +3,7 @@ version: 1.0.0
 main: com.galyakyxnya.pvpzone.Main
 api-version: '1.21'
 author: Galyakyxnya
-description: PvP Zone plugin with rating system and shop
+description: PvP Zone plugin with rating system, duels and shop
 website: https://your-website.com
 prefix: PvPZone
 
@@ -12,26 +12,58 @@ commands:
     description: Установить первую точку PvP зоны
     usage: /pvpz1
     permission: pvpzone.admin
+
   pvpz2:
     description: Установить вторую точку PvP зоны
     usage: /pvpz2
     permission: pvpzone.admin
-  pvpzone:
-    description: Основная команда PvP зоны
-    usage: /pvpzone [reload|status|help]
-    aliases: [pvp]
+
   pvpkit:
     description: Установить PvP набор
     usage: /pvpkit
     permission: pvpzone.admin
+
   pvptop:
     description: Топ игроков по рейтингу
-    usage: /pvptop [page]
+    usage: /pvptop [страница]
     aliases: [pvprating, pvpleaderboard]
+
   pvpshop:
     description: Магазин PvP бонусов
     usage: /pvpshop [info|bonuses]
     aliases: [pvpstore]
+
+  pvpzone:
+    description: Управление PvP зонами
+    usage: /pvpzone [list|create|delete|info|bonuses|kit|reload|status|help]
+    permission: pvpzone.admin
+    aliases: [pvpz]
+
+  pvp:
+    description: Вызвать игрока на дуэль
+    usage: /pvp <игрок> [зона]
+
+  pvpaccept:
+    description: Принять вызов на дуэль
+    usage: /pvpaccept
+
+  pvpdeny:
+    description: Отклонить вызов на дуэль
+    usage: /pvpdeny
+
+  pvpfix:
+    description: Исправить PvP состояние
+    usage: /pvpfix
+
+  testkit:
+    description: Тестирование PvP набора
+    usage: /testkit [apply|check]
+    permission: pvpzone.admin
+
+  testzone:
+    description: Проверить, находитесь ли вы в PvP зоне
+    usage: /testzone
+    permission: pvpzone.admin
 
 permissions:
   pvpzone.*:
@@ -41,18 +73,18 @@ permissions:
       pvpzone.admin: true
       pvpzone.shop: true
     default: op
-    
+
   pvpzone.use:
     description: Позволяет использовать PvP зону
     default: true
-    
+
   pvpzone.admin:
     description: Дает админ права PvP Zone
     default: op
     children:
       pvpzone.use: true
       pvpzone.shop: true
-    
+
   pvpzone.shop:
     description: Позволяет использовать магазин
     default: true
