@@ -1,0 +1,106 @@
+# PvP Zone Plugin Configuration
+
+# Сообщения
+messages:
+  prefix: "&6[PvPZone] &f"
+  enter-zone: "&6Вы вошли в PvP зону! Ваш инвентарь сохранен."
+  exit-zone: "&6Вы вышли из PvP зоны! Ваш инвентарь восстановлен."
+  pvp-kill: "&a+1 очко за победу в PvP!"
+  no-kit: "&cPvP набор не установлен! Администратор должен использовать /pvpkit"
+  no-zone: "&cPvP зона не установлена! Администратор должен использовать /pvpz1 и /pvpz2"
+  
+# Настройки зоны
+zone:
+  check-interval: 20
+  pvp-enabled: true
+  keep-inventory: true
+  disable-mob-spawns: true
+  prevent-block-break: true
+  prevent-block-place: true
+  
+# Настройки рейтинга
+rating:
+  points-per-kill: 1
+  points-per-death: 0
+  kill-streak-bonus: true
+  kill-streak-multiplier: 0.5
+  minimum-players-for-rating: 2
+  
+# Настройки магазина
+shop:
+  enabled: true
+  open-command: true
+  
+# Бонусы
+bonuses:
+  health:
+    enabled: true
+    max-level: 5
+    base-cost: 10
+    value-per-level: 0.5
+    display-name: "&cДополнительное сердце"
+    description: "Увеличивает максимальное здоровье"
+    
+  speed:
+    enabled: true
+    max-level: 5
+    base-cost: 8
+    value-per-level: 0.05
+    display-name: "&bУвеличение скорости"
+    description: "Увеличивает скорость передвижения"
+    
+  jump:
+    enabled: true
+    max-level: 3
+    base-cost: 12
+    value-per-level: 0.1
+    display-name: "&aВысокий прыжок"
+    description: "Увеличивает высоту прыжка"
+    
+  damage:
+    enabled: true
+    max-level: 3
+    base-cost: 15
+    value-per-level: 0.05
+    display-name: "&4Усиление урона"
+    description: "Увеличивает наносимый урон"
+    
+# Настройки набора
+kit:
+  auto-give: true
+  save-on-death: true
+  default-kit: "default"
+  
+# Эффекты
+effects:
+  on-enter:
+    - "SPEED:5:1"
+    - "REGENERATION:5:1"
+  on-kill:
+    - "ABSORPTION:10:1"
+    - "REGENERATION:3:1"
+    
+# База данных
+database:
+  enabled: false
+  type: "sqlite"
+  host: "localhost"
+  port: 3306
+  database: "pvpzone"
+  username: "root"
+  password: ""
+  table-prefix: "pvpzone_"
+  
+# Логирование
+logging:
+  enabled: true
+  level: "INFO"
+  log-pvp-kills: true
+  log-zone-entries: true
+  log-shop-purchases: true
+  
+# Обновления
+updates:
+  check: true
+  notify: true
+  auto-download: false

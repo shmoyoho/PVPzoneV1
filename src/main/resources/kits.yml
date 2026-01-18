@@ -1,0 +1,71 @@
+# PvP Zone - Kits Configuration
+# Здесь хранятся PvP наборы
+
+default:
+  name: "Default PvP Kit"
+  enabled: true
+  items:
+    0:
+      type: IRON_SWORD
+      amount: 1
+      name: "&6PvP Меч"
+      lore:
+        - "&7Стандартный меч для PvP"
+      enchantments:
+        SHARPNESS: 2
+        FIRE_ASPECT: 1
+      unbreakable: true
+    1:
+      type: BOW
+      amount: 1
+      name: "&6PvP Лук"
+      lore:
+        - "&7Стандартный лук для PvP"
+      enchantments:
+        POWER: 3
+        INFINITY: 1
+      unbreakable: true
+    2:
+      type: ARROW
+      amount: 64
+    3:
+      type: SPLASH_POTION
+      amount: 3
+      name: "&cЗелье лечения"
+      potion: "INSTANT_HEAL:true:true"
+    4:
+      type: SPLASH_POTION
+      amount: 2
+      name: "&bЗелье скорости"
+      potion: "SPEED:true:true"
+    5:
+      type: COOKED_BEEF
+      amount: 16
+      name: "&6Еда"
+  armor:
+    3:
+      type: IRON_HELMET
+      enchantments:
+        PROTECTION: 2
+        UNBREAKING: 3
+    2:
+      type: IRON_CHESTPLATE
+      enchantments:
+        PROTECTION: 2
+        UNBREAKING: 3
+    1:
+      type: IRON_LEGGINGS
+      enchantments:
+        PROTECTION: 2
+        UNBREAKING: 3
+    0:
+      type: IRON_BOOTS
+      enchantments:
+        PROTECTION: 2
+        FEATHER_FALLING: 2
+        UNBREAKING: 3
+
+# Дополнительные наборы можно добавить здесь
+# advanced:
+#   name: "Advanced Kit"
+#   enabled: false

@@ -1,0 +1,67 @@
+name: PvpZone
+version: 1.0.0
+main: com.galyakyxnya.pvpzone.Main
+api-version: '1.21'
+author: Galyakyxnya
+description: PvP Zone plugin with rating system and shop
+website: https://your-website.com
+prefix: PvPZone
+
+commands:
+  pvpz1:
+    description: Установить первую точку PvP зоны
+    usage: /pvpz1
+    permission: pvpzone.admin
+  pvpz2:
+    description: Установить вторую точку PvP зоны
+    usage: /pvpz2
+    permission: pvpzone.admin
+  pvpzone:
+    description: Основная команда PvP зоны
+    usage: /pvpzone [reload|status|help]
+    aliases: [pvp]
+  pvpkit:
+    description: Установить PvP набор
+    usage: /pvpkit
+    permission: pvpzone.admin
+  pvptop:
+    description: Топ игроков по рейтингу
+    usage: /pvptop [page]
+    aliases: [pvprating, pvpleaderboard]
+  pvpshop:
+    description: Магазин PvP бонусов
+    usage: /pvpshop [info|bonuses]
+    aliases: [pvpstore]
+
+permissions:
+  pvpzone.*:
+    description: Дает все права PvP Zone
+    children:
+      pvpzone.use: true
+      pvpzone.admin: true
+      pvpzone.shop: true
+    default: op
+    
+  pvpzone.use:
+    description: Позволяет использовать PvP зону
+    default: true
+    
+  pvpzone.admin:
+    description: Дает админ права PvP Zone
+    default: op
+    children:
+      pvpzone.use: true
+      pvpzone.shop: true
+    
+  pvpzone.shop:
+    description: Позволяет использовать магазин
+    default: true
+    children:
+      pvpzone.use: true
+
+# Дополнительные настройки
+load: POSTWORLD
+depend: []
+softdepend: [Vault]
+libraries:
+  - com.google.code.gson:gson:2.8.9
