@@ -3,13 +3,10 @@ package com.galyakyxnya.pvpzone;
 import com.galyakyxnya.pvpzone.commands.*;
 import com.galyakyxnya.pvpzone.listeners.*;
 import com.galyakyxnya.pvpzone.managers.*;
-import com.galyakyxnya.pvpzone.utils.ConfigManager;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
+import org.bukkit.plugin.java.JavaPlugin;
 
 public class Main extends JavaPlugin {
     private static Main instance;
@@ -17,7 +14,6 @@ public class Main extends JavaPlugin {
     private PlayerDataManager playerDataManager;
     private KitManager kitManager;
     private ShopManager shopManager;
-    private ConfigManager configManager;
     private InventoryClickListener inventoryClickListener;
     private PlayerMoveListener playerMoveListener;
     private DuelManager duelManager;
@@ -25,9 +21,6 @@ public class Main extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-
-        // Инициализация ConfigManager
-        this.configManager = new ConfigManager(this);
 
         // Создаем папки если их нет
         if (!getDataFolder().exists()) {
@@ -49,89 +42,53 @@ public class Main extends JavaPlugin {
         // Регистрация слушателей
         registerListeners();
 
+        // Запускаем очистку в DuelManager
+        duelManager.cleanup();
+
         getLogger().info(ChatColor.GREEN + "PvP Zone Plugin включен!");
         getLogger().info(ChatColor.GREEN + "Версия: " + getDescription().getVersion());
+        getLogger().info(ChatColor.GREEN + "Загружено зон: " + zoneManager.getAllZones().size());
+        getLogger().info(ChatColor.GREEN + "Загружено наборов: " + (kitManager.isDefaultKitSet() ? "Да" : "Нет"));
     }
 
     @Override
     public void onDisable() {
+        // Сохраняем данные
         if (playerDataManager != null) {
             playerDataManager.saveAllData();
+            playerDataManager.closeDatabase();
+
         }
 
         getLogger().info(ChatColor.RED + "PvP Zone Plugin выключен!");
     }
 
     private void registerCommands() {
-        // Проверяем наличие команд в plugin.yml
-        if (getCommand("pvpz1") != null) {
-            getCommand("pvpz1").setExecutor(new PvpZ1Command(this));
-        } else {
-            getLogger().warning("Команда pvpz1 не найдена в plugin.yml!");
-        }
+        // Регистрация простых команд
+        getCommand("pvpz1").setExecutor(new PvpZ1Command(this));
+        getCommand("pvpz2").setExecutor(new PvpZ2Command(this));
+        getCommand("pvpkit").setExecutor(new PvpKitCommand(this));
+        getCommand("pvptop").setExecutor(new PvpTopCommand(this));
+        getCommand("pvpaccept").setExecutor(new PvpAcceptCommand(this));
+        getCommand("pvpdeny").setExecutor(new PvpDenyCommand(this));
+        getCommand("pvpfix").setExecutor(new PvpResetCommand(this)); // Используем PvpResetCommand для pvpfix
 
-        if (getCommand("pvpz2") != null) {
-            getCommand("pvpz2").setExecutor(new PvpZ2Command(this));
-        } else {
-            getLogger().warning("Команда pvpz2 не найдена в plugin.yml!");
-        }
+        // Команды с TabCompleter
+        PvpDuelCommand pvpDuelCommand = new PvpDuelCommand(this);
+        getCommand("pvp").setExecutor(pvpDuelCommand);
+        getCommand("pvp").setTabCompleter(pvpDuelCommand);
 
-        if (getCommand("pvpkit") != null) {
-            getCommand("pvpkit").setExecutor(new PvpKitCommand(this));
-        } else {
-            getLogger().warning("Команда pvpkit не найдена в plugin.yml!");
-        }
+        PvpZoneCommand pvpZoneCommand = new PvpZoneCommand(this);
+        getCommand("pvpzone").setExecutor(pvpZoneCommand);
+        getCommand("pvpzone").setTabCompleter(pvpZoneCommand);
 
-        if (getCommand("pvptop") != null) {
-            getCommand("pvptop").setExecutor(new PvpTopCommand(this));
-        } else {
-            getLogger().warning("Команда pvptop не найдена в plugin.yml!");
-        }
-
-        if (getCommand("pvpshop") != null) {
-            getCommand("pvpshop").setExecutor(new PvpShopCommand(this, inventoryClickListener));
-        } else {
-            getLogger().warning("Команда pvpshop не найдена в plugin.yml!");
-        }
-
-        if (getCommand("pvpzone") != null) {
-            PvpZoneCommand pvpZoneCommand = new PvpZoneCommand(this);
-            getCommand("pvpzone").setExecutor(pvpZoneCommand);
-            getCommand("pvpzone").setTabCompleter(pvpZoneCommand);
-        } else {
-            getLogger().warning("Команда pvpzone не найдена в plugin.yml!");
-        }
-
-        // Команды дуэлей
-        if (getCommand("pvp") != null) {
-            PvpDuelCommand pvpDuelCommand = new PvpDuelCommand(this);
-            getCommand("pvp").setExecutor(pvpDuelCommand);
-            getCommand("pvp").setTabCompleter(pvpDuelCommand);
-        } else {
-            getLogger().warning("Команда pvp не найдена в plugin.yml!");
-        }
-
-        if (getCommand("pvpaccept") != null) {
-            getCommand("pvpaccept").setExecutor(new PvpAcceptCommand(this));
-        } else {
-            getLogger().warning("Команда pvpaccept не найдена в plugin.yml!");
-        }
-
-        if (getCommand("pvpdeny") != null) {
-            getCommand("pvpdeny").setExecutor(new PvpDenyCommand(this));
-        } else {
-            getLogger().warning("Команда pvpdeny не найдена в plugin.yml!");
-        }
-
-        // Команда для исправления состояния
-        if (getCommand("pvpfix") != null) {
-            getCommand("pvpfix").setExecutor(new PvpFixCommand(this));
-        } else {
-            getLogger().warning("Команда pvpfix не найдена в plugin.yml!");
-        }
+        PvpShopCommand pvpShopCommand = new PvpShopCommand(this, inventoryClickListener);
+        getCommand("pvpshop").setExecutor(pvpShopCommand);
+        getCommand("pvpshop").setTabCompleter(pvpShopCommand);
     }
 
     private void registerListeners() {
+        // Регистрация слушателей
         getServer().getPluginManager().registerEvents(playerMoveListener, this);
         getServer().getPluginManager().registerEvents(new PlayerDeathListener(this), this);
         getServer().getPluginManager().registerEvents(inventoryClickListener, this);
@@ -159,10 +116,6 @@ public class Main extends JavaPlugin {
         return shopManager;
     }
 
-    public ConfigManager getConfigManager() {
-        return configManager;
-    }
-
     public InventoryClickListener getInventoryClickListener() {
         return inventoryClickListener;
     }
@@ -177,9 +130,8 @@ public class Main extends JavaPlugin {
 
     // Метод для перезагрузки плагина
     public void reload() {
-        configManager.reloadConfigs();
         zoneManager.loadZonesPublic();
-        kitManager.loadKit();
+        kitManager.reloadKits();
         getLogger().info(ChatColor.GREEN + "Плагин перезагружен!");
     }
 }

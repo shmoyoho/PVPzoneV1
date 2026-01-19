@@ -20,23 +20,39 @@ public class ZoneManager {
         private Location pos2;
         private boolean bonusesEnabled;
         private Location center;
-        private String kitName; // Новое поле для названия набора
+        private String kitName;
+
+        // ОПТИМИЗАЦИЯ: Кэшируем границы для быстрой проверки
+        private double minX, maxX, minZ, maxZ;
+        private World world;
 
         public PvpZone(String name, Location pos1, Location pos2, boolean bonusesEnabled) {
             this.name = name;
             this.pos1 = pos1;
             this.pos2 = pos2;
             this.bonusesEnabled = bonusesEnabled;
-            this.kitName = "default"; // Набор по умолчанию
+            this.kitName = "default";
+            calculateBounds();
             calculateCenter();
         }
 
-        private void calculateCenter() {
+        // ОПТИМИЗАЦИЯ: Вычисляем границы один раз
+        private void calculateBounds() {
             if (pos1 != null && pos2 != null && pos1.getWorld() != null) {
-                double centerX = (pos1.getX() + pos2.getX()) / 2;
+                this.world = pos1.getWorld();
+                this.minX = Math.min(pos1.getX(), pos2.getX());
+                this.maxX = Math.max(pos1.getX(), pos2.getX());
+                this.minZ = Math.min(pos1.getZ(), pos2.getZ());
+                this.maxZ = Math.max(pos1.getZ(), pos2.getZ());
+            }
+        }
+
+        private void calculateCenter() {
+            if (pos1 != null && pos2 != null && world != null) {
+                double centerX = (minX + maxX) / 2;
                 double centerY = (pos1.getY() + pos2.getY()) / 2;
-                double centerZ = (pos1.getZ() + pos2.getZ()) / 2;
-                this.center = new Location(pos1.getWorld(), centerX, centerY, centerZ);
+                double centerZ = (minZ + maxZ) / 2;
+                this.center = new Location(world, centerX, centerY, centerZ);
             }
         }
 
@@ -45,35 +61,32 @@ public class ZoneManager {
         public Location getPos2() { return pos2; }
         public boolean isBonusesEnabled() { return bonusesEnabled; }
         public Location getCenter() { return center; }
-        public String getKitName() { return kitName; } // Геттер для набора
+        public String getKitName() { return kitName; }
 
         public void setBonusesEnabled(boolean enabled) {
             this.bonusesEnabled = enabled;
         }
 
-        public void setKitName(String kitName) { // Сеттер для набора
+        public void setKitName(String kitName) {
             this.kitName = kitName;
         }
 
+        // ОПТИМИЗАЦИЯ: Ускоренная проверка нахождения в зоне
         public boolean isInZone(Location location) {
-            if (pos1 == null || pos2 == null || location == null) return false;
+            if (world == null || location == null || !location.getWorld().equals(world)) {
+                return false;
+            }
 
-            World world1 = pos1.getWorld();
-            World world2 = pos2.getWorld();
+            double x = location.getX();
+            double z = location.getZ();
 
-            if (world1 == null || world2 == null) return false;
-            if (!location.getWorld().equals(world1)) return false;
+            // Быстрая проверка по X и Z
+            if (x < minX || x > maxX || z < minZ || z > maxZ) {
+                return false;
+            }
 
-            double minX = Math.min(pos1.getX(), pos2.getX());
-            double maxX = Math.max(pos1.getX(), pos2.getX());
-            double minY = 0;
-            double maxY = world1.getMaxHeight();
-            double minZ = Math.min(pos1.getZ(), pos2.getZ());
-            double maxZ = Math.max(pos1.getZ(), pos2.getZ());
-
-            return location.getX() >= minX && location.getX() <= maxX &&
-                    location.getY() >= minY && location.getY() <= maxY &&
-                    location.getZ() >= minZ && location.getZ() <= maxZ;
+            // Проверка Y (вся высота мира)
+            return location.getY() >= 0 && location.getY() <= world.getMaxHeight();
         }
 
         public Location getSpawnLocation(int playerNumber) {
@@ -127,7 +140,6 @@ public class ZoneManager {
         return true;
     }
 
-    // Метод для установки набора для зоны
     public boolean setZoneKit(String zoneName, String kitName) {
         PvpZone zone = getZone(zoneName);
         if (zone == null) {
@@ -139,7 +151,6 @@ public class ZoneManager {
         return true;
     }
 
-    // Метод для получения названия набора зоны
     public String getZoneKitName(String zoneName) {
         PvpZone zone = getZone(zoneName);
         return zone != null ? zone.getKitName() : "default";
@@ -167,7 +178,13 @@ public class ZoneManager {
         return new ArrayList<>(zones.values());
     }
 
+    // ОПТИМИЗАЦИЯ: Ускоренный поиск зоны по местоположению
     public PvpZone findZoneAtLocation(Location location) {
+        if (location == null || zones.isEmpty()) {
+            return null;
+        }
+
+        // ОПТИМИЗАЦИЯ: Проверяем только зоны в том же мире
         for (PvpZone zone : zones.values()) {
             if (zone.isInZone(location)) {
                 return zone;
@@ -203,7 +220,7 @@ public class ZoneManager {
             if (zone.getPos1() != null && zone.getPos1().getWorld() != null) {
                 config.set(key + ".name", zone.getName());
                 config.set(key + ".bonusesEnabled", zone.isBonusesEnabled());
-                config.set(key + ".kitName", zone.getKitName()); // Сохраняем набор
+                config.set(key + ".kitName", zone.getKitName());
 
                 config.set(key + ".pos1.world", zone.getPos1().getWorld().getName());
                 config.set(key + ".pos1.x", zone.getPos1().getX());
@@ -232,42 +249,43 @@ public class ZoneManager {
 
             String name = config.getString(path + ".name", zoneKey);
             boolean bonusesEnabled = config.getBoolean(path + ".bonusesEnabled", true);
-            String kitName = config.getString(path + ".kitName", "default"); // Загружаем набор
+            String kitName = config.getString(path + ".kitName", "default");
 
-            Location pos1 = null;
-            if (config.contains(path + ".pos1")) {
-                String worldName = config.getString(path + ".pos1.world");
-                if (worldName != null) {
-                    World world = Bukkit.getWorld(worldName);
-                    if (world != null) {
-                        double x = config.getDouble(path + ".pos1.x");
-                        double y = config.getDouble(path + ".pos1.y");
-                        double z = config.getDouble(path + ".pos1.z");
-                        pos1 = new Location(world, x, y, z);
-                    }
-                }
-            }
-
-            Location pos2 = null;
-            if (config.contains(path + ".pos2")) {
-                String worldName = config.getString(path + ".pos2.world");
-                if (worldName != null) {
-                    World world = Bukkit.getWorld(worldName);
-                    if (world != null) {
-                        double x = config.getDouble(path + ".pos2.x");
-                        double y = config.getDouble(path + ".pos2.y");
-                        double z = config.getDouble(path + ".pos2.z");
-                        pos2 = new Location(world, x, y, z);
-                    }
-                }
-            }
+            Location pos1 = loadLocationFromConfig(path + ".pos1");
+            Location pos2 = loadLocationFromConfig(path + ".pos2");
 
             if (pos1 != null && pos2 != null) {
                 PvpZone zone = new PvpZone(name, pos1, pos2, bonusesEnabled);
-                zone.setKitName(kitName); // Устанавливаем загруженный набор
+                zone.setKitName(kitName);
                 zones.put(name.toLowerCase(), zone);
             }
         }
+
+        plugin.getLogger().info("Загружено зон: " + zones.size());
+    }
+
+    private Location loadLocationFromConfig(String path) {
+        var config = plugin.getConfig();
+
+        if (!config.contains(path)) {
+            return null;
+        }
+
+        String worldName = config.getString(path + ".world");
+        if (worldName == null) {
+            return null;
+        }
+
+        var world = Bukkit.getWorld(worldName);
+        if (world == null) {
+            return null;
+        }
+
+        double x = config.getDouble(path + ".x");
+        double y = config.getDouble(path + ".y");
+        double z = config.getDouble(path + ".z");
+
+        return new Location(world, x, y, z);
     }
 
     public void loadZonesPublic() {

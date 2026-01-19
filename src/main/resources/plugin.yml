@@ -55,15 +55,6 @@ commands:
     description: Исправить PvP состояние
     usage: /pvpfix
 
-  testkit:
-    description: Тестирование PvP набора
-    usage: /testkit [apply|check]
-    permission: pvpzone.admin
-
-  testzone:
-    description: Проверить, находитесь ли вы в PvP зоне
-    usage: /testzone
-    permission: pvpzone.admin
 
 permissions:
   pvpzone.*:

@@ -11,9 +11,11 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class PvpDuelCommand implements CommandExecutor, TabCompleter {
     private final Main plugin;
+    private final Random random = new Random();
 
     public PvpDuelCommand(Main plugin) {
         this.plugin = plugin;
@@ -47,8 +49,26 @@ public class PvpDuelCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // Если зона не указана, выбираем случайную
+        if (zoneName == null) {
+            zoneName = getRandomZoneName();
+            if (zoneName == null) {
+                player.sendMessage("§cНет доступных зон для дуэли!");
+                return true;
+            }
+            player.sendMessage("§7Выбрана случайная зона: §e" + zoneName);
+        }
+
         boolean success = plugin.getDuelManager().challengePlayer(player, target, zoneName);
         return true;
+    }
+
+    private String getRandomZoneName() {
+        var zones = plugin.getZoneManager().getAllZones();
+        if (zones.isEmpty()) {
+            return null;
+        }
+        return zones.get(random.nextInt(zones.size())).getName();
     }
 
     private void showHelp(Player player) {

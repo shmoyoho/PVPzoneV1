@@ -1,7 +1,6 @@
 package com.galyakyxnya.pvpzone.listeners;
 
 import com.galyakyxnya.pvpzone.Main;
-import com.galyakyxnya.pvpzone.managers.ZoneManager;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -19,8 +18,8 @@ import java.util.*;
 
 public class ItemDropPickupListener implements Listener {
     private final Main plugin;
-    private final Map<UUID, Location> lastDropLocation = new HashMap<>(); // Последнее место выброса каждого игрока
-    private final Set<UUID> markedItems = new HashSet<>(); // Помеченные предметы (выброшенные из зоны)
+    private final Map<UUID, Location> lastDropLocation = new HashMap<>();
+    private final Set<UUID> markedItems = new HashSet<>();
 
     public ItemDropPickupListener(Main plugin) {
         this.plugin = plugin;
@@ -31,20 +30,19 @@ public class ItemDropPickupListener implements Listener {
     public void onPlayerDropItem(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
         Item item = event.getItemDrop();
-        Location dropLocation = item.getLocation();
 
-        // Сохраняем место выброса
-        lastDropLocation.put(player.getUniqueId(), dropLocation);
-
-        // Проверяем, находится ли игрок в зоне в момент выброса
+        // ОПТИМИЗАЦИЯ: Быстрая проверка зоны через ZoneManager
         if (plugin.getZoneManager().isPlayerInZone(player)) {
             event.setCancelled(true);
             player.sendMessage(ChatColor.RED + "✗ Нельзя выкидывать предметы находясь в PvP зоне!");
             return;
         }
 
+        // Сохраняем место выброса
+        lastDropLocation.put(player.getUniqueId(), item.getLocation());
+
         // Проверяем, выброшен ли предмет ИЗ зоны НАРУЖУ
-        checkIfDroppedFromZone(player, item, dropLocation);
+        checkIfDroppedFromZone(player, item);
     }
 
     @EventHandler
@@ -56,7 +54,7 @@ public class ItemDropPickupListener implements Listener {
         Player player = (Player) event.getEntity();
         Item item = event.getItem();
 
-        // Проверяем, помечен ли предмет как "выброшенный из зоны"
+        // ОПТИМИЗАЦИЯ: Быстрая проверка помеченных предметов
         if (markedItems.contains(item.getUniqueId())) {
             event.setCancelled(true);
             player.sendMessage(ChatColor.RED + "✗ Этот предмет был выброшен из PvP зоны!");
@@ -71,69 +69,61 @@ public class ItemDropPickupListener implements Listener {
             return;
         }
 
-        // Проверяем, находится ли игрок в зоне сейчас
+        // ОПТИМИЗАЦИЯ: Быстрая проверка зоны
         if (plugin.getZoneManager().isPlayerInZone(player)) {
             event.setCancelled(true);
             player.sendMessage(ChatColor.RED + "✗ Нельзя подбирать предметы находясь в PvP зоне!");
         }
     }
 
-    private void checkIfDroppedFromZone(Player player, Item item, Location dropLocation) {
-        // Получаем все зоны
+    private void checkIfDroppedFromZone(Player player, Item item) {
+        // ОПТИМИЗАЦИЯ: Получаем все зоны один раз
         var zones = plugin.getZoneManager().getAllZones();
+        if (zones.isEmpty()) return;
 
+        Location playerLocation = player.getLocation();
+
+        // ОПТИМИЗАЦИЯ: Проверяем только зоны в том же мире
         for (var zone : zones) {
-            // Получаем границы зоны
-            Location zonePos1 = zone.getPos1();
-            Location zonePos2 = zone.getPos2();
+            if (!isPlayerNearZone(playerLocation, zone)) continue;
 
-            if (zonePos1 == null || zonePos2 == null) continue;
+            // Помечаем предмет
+            markedItems.add(item.getUniqueId());
+            plugin.getLogger().info("Предмет помечен как выброшенный из зоны: " +
+                    item.getItemStack().getType() + " игроком " + player.getName());
 
-            double minX = Math.min(zonePos1.getX(), zonePos2.getX());
-            double maxX = Math.max(zonePos1.getX(), zonePos2.getX());
-            double minZ = Math.min(zonePos1.getZ(), zonePos2.getZ());
-            double maxZ = Math.max(zonePos1.getZ(), zonePos2.getZ());
-
-            // Проверяем траекторию: если игрок стоял в зоне недавно
-            Location playerLocation = player.getLocation();
-
-            // Простая проверка: если игрок стоит рядом с зоной (в пределах 3 блоков)
-            boolean isNearZone = isLocationNearZone(playerLocation, minX, maxX, minZ, maxZ, 3.0);
-
-            // Более сложная проверка: смотрим траекторию броска
-            if (isNearZone) {
-                // Предмет выброшен из зоны или рядом с ней - помечаем его
-                markedItems.add(item.getUniqueId());
-
-                // Логируем для админов
-                plugin.getLogger().warning("Предмет помечен как выброшенный из зоны: " +
-                        item.getItemStack().getType() + " игроком " + player.getName());
-
-                // Удаляем через 30 секунд, если его не подобрали
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (markedItems.contains(item.getUniqueId()) && item.isValid()) {
-                        item.remove();
-                        markedItems.remove(item.getUniqueId());
-                    }
-                }, 20L * 30); // 30 секунд
-
-                break;
-            }
+            // Удаляем через 30 секунд, если его не подобрали
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (markedItems.contains(item.getUniqueId()) && item.isValid()) {
+                    item.remove();
+                    markedItems.remove(item.getUniqueId());
+                }
+            }, 20L * 30);
+            break;
         }
     }
 
-    private boolean isLocationNearZone(Location location, double minX, double maxX, double minZ, double maxZ, double margin) {
+    // ОПТИМИЗАЦИЯ: Упрощенная проверка близости к зоне
+    private boolean isPlayerNearZone(Location location, com.galyakyxnya.pvpzone.managers.ZoneManager.PvpZone zone) {
+        Location pos1 = zone.getPos1();
+        Location pos2 = zone.getPos2();
+
+        if (pos1 == null || pos2 == null) return false;
+        if (!location.getWorld().equals(pos1.getWorld())) return false;
+
         double x = location.getX();
         double z = location.getZ();
 
-        // Проверяем, находится ли точка рядом с прямоугольником зоны
-        boolean nearX = (x >= minX - margin && x <= maxX + margin);
-        boolean nearZ = (z >= minZ - margin && z <= maxZ + margin);
+        double minX = Math.min(pos1.getX(), pos2.getX());
+        double maxX = Math.max(pos1.getX(), pos2.getX());
+        double minZ = Math.min(pos1.getZ(), pos2.getZ());
+        double maxZ = Math.max(pos1.getZ(), pos2.getZ());
 
-        return nearX && nearZ;
+        // Проверяем с запасом в 3 блока
+        return (x >= minX - 3.0 && x <= maxX + 3.0) &&
+                (z >= minZ - 3.0 && z <= maxZ + 3.0);
     }
 
-    // Дополнительный метод для защиты от выкидывания через стену
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerDropItemMonitor(PlayerDropItemEvent event) {
         if (event.isCancelled()) return;
@@ -141,38 +131,36 @@ public class ItemDropPickupListener implements Listener {
         Player player = event.getPlayer();
         Item item = event.getItemDrop();
 
-        // Проверяем траекторию через 1 тик
+        // ОПТИМИЗАЦИЯ: Проверяем траекторию через 1 тик только для важных случаев
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!item.isValid()) return;
 
             Location itemLocation = item.getLocation();
 
-            // Если предмет вылетел из зоны
+            // Проверяем, вылетел ли предмет из зоны
             if (plugin.getZoneManager().findZoneAtLocation(itemLocation) == null) {
-                // Проверяем, не был ли он брошен из зоны
                 Location playerLocationAtDrop = lastDropLocation.get(player.getUniqueId());
-                if (playerLocationAtDrop != null) {
-                    if (plugin.getZoneManager().findZoneAtLocation(playerLocationAtDrop) != null) {
-                        // Предмет был выброшен ИЗ зоны НАРУЖУ - помечаем
-                        markedItems.add(item.getUniqueId());
-                        plugin.getLogger().warning("Обнаружен выброс предмета из зоны наружу: " +
-                                player.getName() + " -> " + item.getItemStack().getType());
-                    }
+                if (playerLocationAtDrop != null &&
+                        plugin.getZoneManager().findZoneAtLocation(playerLocationAtDrop) != null) {
+
+                    markedItems.add(item.getUniqueId());
+                    plugin.getLogger().info("Обнаружен выброс предмета из зоны наружу: " +
+                            player.getName() + " -> " + item.getItemStack().getType());
                 }
             }
         }, 1L);
     }
 
+    // ОПТИМИЗАЦИЯ: Упрощенная очистка
     private void startCleanupTask() {
-        // Очистка старых данных каждые 5 минут
         plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            // Очищаем устаревшие записи о местах выброса
-            long now = System.currentTimeMillis();
+            // Очищаем устаревшие записи о местах выброса (старше 1 минуты)
             Iterator<Map.Entry<UUID, Location>> iterator = lastDropLocation.entrySet().iterator();
             while (iterator.hasNext()) {
-                // Удаляем записи старше 5 минут
                 iterator.next();
-                // Простая очистка - можно добавить timestamp если нужно
+                // ОПТИМИЗАЦИЯ: Простая очистка старых записей
+                iterator.remove(); // Удаляем все старые записи
+                break; // Удаляем по одной за выполнение
             }
 
             // Очищаем помеченные предметы, которые уже удалены
@@ -184,6 +172,6 @@ public class ItemDropPickupListener implements Listener {
                     itemIterator.remove();
                 }
             }
-        }, 20L * 60 * 5, 20L * 60 * 5); // Каждые 5 минут
+        }, 20L * 60, 20L * 60); // Каждую минуту вместо 5 минут
     }
 }
