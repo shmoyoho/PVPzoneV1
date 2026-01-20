@@ -14,10 +14,10 @@ public class ShopManager {
         this.shopItems = new HashMap<>();
         loadShopItems();
     }
-    
+
     private void loadShopItems() {
         // Предопределенные бонусы
-        shopItems.put("health", new ShopItem("health", "Дополнительное сердце", 10, 5, 0.5));
+        shopItems.put("health", new ShopItem("health", "Дополнительное сердце", 10, 5, 2.0)); // 2.0 хита за уровень (1 сердце)
         shopItems.put("speed", new ShopItem("speed", "Увеличение скорости", 8, 10, 0.05));
         shopItems.put("jump", new ShopItem("jump", "Высокий прыжок", 12, 3, 0.1));
         shopItems.put("damage", new ShopItem("damage", "Усиление урона", 15, 3, 0.05));

@@ -55,7 +55,6 @@ commands:
     description: Исправить PvP состояние
     usage: /pvpfix
 
-
 permissions:
   pvpzone.*:
     description: Дает все права PvP Zone
@@ -82,9 +81,6 @@ permissions:
     children:
       pvpzone.use: true
 
-# Дополнительные настройки
 load: POSTWORLD
 depend: []
-softdepend: [Vault]
-libraries:
-  - com.google.code.gson:gson:2.8.9
+softdepend: []

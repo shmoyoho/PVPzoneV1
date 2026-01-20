@@ -76,6 +76,10 @@ public class PvpDuelCommand implements CommandExecutor, TabCompleter {
         player.sendMessage("§e/pvp <игрок> [зона]");
         player.sendMessage("§7Вызвать игрока на дуэль");
         player.sendMessage("");
+        player.sendMessage("§c⚠ Ограничения:");
+        player.sendMessage("§7• Нельзя вызывать находясь в PvP зоне");
+        player.sendMessage("§7• Нельзя вызывать игрока в PvP зоне");
+        player.sendMessage("");
         player.sendMessage("§7Примеры:");
         player.sendMessage("§e/pvp Notch §7- Вызвать в случайную зону");
         player.sendMessage("§e/pvp Notch arena1 §7- Вызвать в arena1");

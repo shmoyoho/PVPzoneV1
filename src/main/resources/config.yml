@@ -1,5 +1,11 @@
 # PvP Zone Plugin Configuration
 
+leader-effects:
+  enabled: true
+  footsteps: 3        # Количество огоньков за шаг
+  step-distance: 0.1  # Минимальное расстояние для создания следов
+  aura-interval: 3    # Интервал ауры в секундах
+
 # Сообщения
 messages:
   prefix: "&6[PvPZone] &f"

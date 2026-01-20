@@ -4,6 +4,7 @@ import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.models.DuelData;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -45,21 +46,34 @@ public class PlayerDeathListener implements Listener {
 
         // ===== ВТОРОЕ: ПРОВЕРКА PvP ЗОНЫ =====
         if (killer != null && killer != victim) {
-            boolean killerInZone = plugin.getZoneManager().isPlayerInZone(killer);
-            boolean victimInZone = plugin.getZoneManager().isPlayerInZone(victim);
+            Location killerLoc = killer.getLocation();
+            Location victimLoc = victim.getLocation();
 
-            if (killerInZone && victimInZone) {
-                handlePvpKill(killer, victim, event);
-                return;
+            var killerZone = plugin.getZoneManager().findZoneAtLocation(killerLoc);
+            var victimZone = plugin.getZoneManager().findZoneAtLocation(victimLoc);
+
+            // Проверяем, что оба в зонах
+            if (killerZone != null && victimZone != null) {
+                // Проверяем, что в одной зоне
+                if (killerZone.getName().equals(victimZone.getName())) {
+                    handlePvpKill(killer, victim, event);
+                    return;
+                }
             }
         }
 
         // ===== ТРЕТЬЕ: ЕСЛИ ЖЕРТВА БЫЛА В ЗОНЕ =====
-        if (plugin.getZoneManager().isPlayerInZone(victim)) {
+        Location victimLoc = victim.getLocation();
+        var victimZone = plugin.getZoneManager().findZoneAtLocation(victimLoc);
+        if (victimZone != null) {
             // Восстанавливаем PvP набор после респавна
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (victim.isOnline() && plugin.getZoneManager().isPlayerInZone(victim)) {
-                    plugin.getKitManager().applyKitToPlayer(victim);
+                if (victim.isOnline()) {
+                    // Проверяем, все ли еще в зоне
+                    var currentZone = plugin.getZoneManager().findZoneAtLocation(victim.getLocation());
+                    if (currentZone != null) {
+                        plugin.getKitManager().applyZoneKit(victim, currentZone.getName());
+                    }
                 }
             }, 1L);
         }
@@ -135,6 +149,18 @@ public class PlayerDeathListener implements Listener {
 
     // ===== ОБРАБОТКА ОБЫЧНОГО PvP УБИЙСТВА В ЗОНЕ =====
     private void handlePvpKill(Player killer, Player victim, PlayerDeathEvent event) {
+        // Используем НАДЕЖНУЮ проверку зоны по координатам
+        Location killerLoc = killer.getLocation();
+        Location victimLoc = victim.getLocation();
+
+        var killerZone = plugin.getZoneManager().findZoneAtLocation(killerLoc);
+        var victimZone = plugin.getZoneManager().findZoneAtLocation(victimLoc);
+
+        // Проверяем, что оба в одной зоне
+        if (killerZone == null || victimZone == null) {
+            return;
+        }
+
         // Получаем данные игроков
         var killerData = plugin.getPlayerDataManager().getPlayerData(killer);
         var victimData = plugin.getPlayerDataManager().getPlayerData(victim);
@@ -143,7 +169,7 @@ public class PlayerDeathListener implements Listener {
         killerData.addRating(1); // +1 к рейтингу
         killerData.addPoints(1); // +1 очко для покупок
 
-        // Сохраняем данные
+        // Сохраняем данные УБИЙЦЫ
         plugin.getPlayerDataManager().savePlayerData(killerData);
 
         // Обновляем сообщение смерти
@@ -167,8 +193,12 @@ public class PlayerDeathListener implements Listener {
 
         // Восстанавливаем PvP набор для жертвы после респавна
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (victim.isOnline() && plugin.getZoneManager().isPlayerInZone(victim)) {
-                plugin.getKitManager().applyKitToPlayer(victim);
+            if (victim.isOnline()) {
+                // Проверяем, все ли еще в зоне
+                var currentZone = plugin.getZoneManager().findZoneAtLocation(victim.getLocation());
+                if (currentZone != null) {
+                    plugin.getKitManager().applyZoneKit(victim, currentZone.getName());
+                }
             }
         }, 1L);
 
@@ -187,19 +217,20 @@ public class PlayerDeathListener implements Listener {
     // ===== ОБРАБОТКА КИЛЛСТРИКА =====
     private void handleKillStreak(Player killer, com.galyakyxnya.pvpzone.models.PlayerData killerData) {
         // Простая реализация: каждое 3е убийство дает дополнительное очко
-        int currentKills = killerData.getRating(); // используем рейтинг как счетчик убийств
+        int currentRating = killerData.getRating();
 
-        if (currentKills % 3 == 0 && currentKills > 0) {
+        if (currentRating % 3 == 0 && currentRating > 0) {
             killerData.addPoints(1); // дополнительное очко за каждые 3 убийства
 
             killer.sendMessage(ChatColor.GOLD + "══════════════════════════════");
             killer.sendMessage(ChatColor.LIGHT_PURPLE + "★ Киллстрик! ★");
             killer.sendMessage(ChatColor.YELLOW + "+1 дополнительное очко за " +
-                    currentKills + " убийств подряд!");
+                    currentRating + " убийств подряд!");
             killer.sendMessage(ChatColor.GRAY + "Всего очков: " + ChatColor.YELLOW +
                     killerData.getPoints());
             killer.sendMessage(ChatColor.GOLD + "══════════════════════════════");
 
+            // Сохраняем данные после начисления киллстрика
             plugin.getPlayerDataManager().savePlayerData(killerData);
         }
     }

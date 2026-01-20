@@ -39,37 +39,37 @@ public class PvpTopCommand implements CommandExecutor, TabCompleter {
         showTopPlayers(sender, page);
         return true;
     }
-    
+
     private void showTopPlayers(CommandSender sender, int page) {
         var topPlayers = plugin.getPlayerDataManager().getTopPlayers(100);
-        
+
         if (topPlayers.isEmpty()) {
             sender.sendMessage(ChatColor.GOLD + "══ Топ игроков PvP ══");
             sender.sendMessage(ChatColor.GRAY + "Пока нет игроков в рейтинге");
             return;
         }
-        
+
         int totalPages = (int) Math.ceil((double) topPlayers.size() / PLAYERS_PER_PAGE);
         if (page > totalPages) page = totalPages;
-        
+
         int startIndex = (page - 1) * PLAYERS_PER_PAGE;
         int endIndex = Math.min(startIndex + PLAYERS_PER_PAGE, topPlayers.size());
-        
+
         sender.sendMessage(ChatColor.GOLD + "══ Топ игроков PvP ══");
         sender.sendMessage(ChatColor.GRAY + "Страница " + page + " из " + totalPages);
         sender.sendMessage("");
-        
+
         for (int i = startIndex; i < endIndex; i++) {
             var playerData = topPlayers.get(i);
             String playerName = Bukkit.getOfflinePlayer(playerData.getPlayerId()).getName();
-            
+
             if (playerName == null) {
                 playerName = "Неизвестный игрок";
             }
-            
+
             ChatColor color;
             String rankSymbol = "";
-            
+
             if (i == 0) {
                 color = ChatColor.GOLD;
                 rankSymbol = "★";
@@ -82,38 +82,37 @@ public class PvpTopCommand implements CommandExecutor, TabCompleter {
             } else {
                 color = ChatColor.WHITE;
             }
-            
-            // Исправлено: явное преобразование чисел в строки
-            String line = color.toString() + (i + 1) + ". " + rankSymbol + " " + playerName + 
-                         ChatColor.GRAY + " - " + ChatColor.YELLOW + 
-                         String.valueOf(playerData.getRating()) + " очков" + 
-                         ChatColor.DARK_GRAY + " (" + String.valueOf(playerData.getPoints()) + " для покупок)";
-            
+
+            String line = color.toString() + (i + 1) + ". " + rankSymbol + " " + playerName +
+                    ChatColor.GRAY + " - " + ChatColor.YELLOW +
+                    String.valueOf(playerData.getRating()) + " очков" +
+                    ChatColor.DARK_GRAY + " (" + String.valueOf(playerData.getPoints()) + " для покупок)";
+
             // Если отправитель - игрок, и это он сам, выделяем его
             if (sender instanceof Player) {
                 Player player = (Player) sender;
                 if (player.getUniqueId().equals(playerData.getPlayerId())) {
                     line = ChatColor.YELLOW + "▶ " + ChatColor.GOLD + String.valueOf(i + 1) + ". " + playerName +
-                           ChatColor.GRAY + " - " + ChatColor.YELLOW + 
-                           String.valueOf(playerData.getRating()) + " очков" + 
-                           ChatColor.DARK_GRAY + " (" + String.valueOf(playerData.getPoints()) + " для покупок)";
+                            ChatColor.GRAY + " - " + ChatColor.YELLOW +
+                            String.valueOf(playerData.getRating()) + " очков" +
+                            ChatColor.DARK_GRAY + " (" + String.valueOf(playerData.getPoints()) + " для покупок)";
                 }
             }
-            
+
             sender.sendMessage(line);
         }
-        
+
         if (page < totalPages) {
             sender.sendMessage("");
-            sender.sendMessage(ChatColor.GRAY + "Используйте " + ChatColor.YELLOW + 
-                             "/pvptop " + String.valueOf(page + 1) + ChatColor.GRAY + " для следующей страницы");
+            sender.sendMessage(ChatColor.GRAY + "Используйте " + ChatColor.YELLOW +
+                    "/pvptop " + String.valueOf(page + 1) + ChatColor.GRAY + " для следующей страницы");
         }
-        
+
         // Показываем статистику отправителя, если это игрок
         if (sender instanceof Player) {
             Player player = (Player) sender;
             var playerData = plugin.getPlayerDataManager().getPlayerData(player);
-            
+
             // Находим позицию в рейтинге
             int playerRank = -1;
             for (int i = 0; i < topPlayers.size(); i++) {
@@ -122,29 +121,38 @@ public class PvpTopCommand implements CommandExecutor, TabCompleter {
                     break;
                 }
             }
-            
+
             sender.sendMessage("");
             sender.sendMessage(ChatColor.GOLD + "════ Ваша статистика ════");
-            
+
             if (playerRank > 0) {
-                sender.sendMessage(ChatColor.GRAY + "Ваше место: " + ChatColor.YELLOW + 
-                                 String.valueOf(playerRank) + ChatColor.GRAY + "/" + String.valueOf(topPlayers.size()));
+                sender.sendMessage(ChatColor.GRAY + "Ваше место: " + ChatColor.YELLOW +
+                        String.valueOf(playerRank) + ChatColor.GRAY + "/" + String.valueOf(topPlayers.size()));
+            } else {
+                sender.sendMessage(ChatColor.GRAY + "Ваше место: " + ChatColor.YELLOW + "не в топе");
             }
-            
-            sender.sendMessage(ChatColor.GRAY + "Рейтинг: " + ChatColor.YELLOW + 
-                             String.valueOf(playerData.getRating()) + " очков");
-            sender.sendMessage(ChatColor.GRAY + "Очки для покупок: " + ChatColor.YELLOW + 
-                             String.valueOf(playerData.getPoints()));
-            
+
+            sender.sendMessage(ChatColor.GRAY + "Рейтинг: " + ChatColor.YELLOW +
+                    String.valueOf(playerData.getRating()) + " очков");
+            sender.sendMessage(ChatColor.GRAY + "Очки для покупок: " + ChatColor.YELLOW +
+                    String.valueOf(playerData.getPoints()));
+
             // Показываем купленные бонусы
             if (!playerData.getPurchasedBonuses().isEmpty()) {
                 sender.sendMessage(ChatColor.GRAY + "Ваши бонусы:");
                 for (var entry : playerData.getPurchasedBonuses().entrySet()) {
                     String bonusName = getBonusName(entry.getKey());
-                    sender.sendMessage(ChatColor.DARK_GRAY + "  • " + ChatColor.GRAY + 
-                                     bonusName + ": " + ChatColor.YELLOW + 
-                                     "уровень " + String.valueOf(entry.getValue()));
+                    sender.sendMessage(ChatColor.DARK_GRAY + "  • " + ChatColor.GRAY +
+                            bonusName + ": " + ChatColor.YELLOW +
+                            "уровень " + String.valueOf(entry.getValue()));
                 }
+            }
+
+            // Сообщаем о эффекте лидера
+            if (playerRank == 1) {
+                sender.sendMessage("");
+                sender.sendMessage(ChatColor.GOLD + "★ ВЫ ЛИДЕР РЕЙТИНГА! ★");
+                sender.sendMessage(ChatColor.GRAY + "За вами следуют огоньки славы");
             }
         }
     }

@@ -1,21 +1,34 @@
 package com.galyakyxnya.pvpzone.managers;
 
 import com.galyakyxnya.pvpzone.Main;
+import com.galyakyxnya.pvpzone.listeners.PlayerMoveListener;
 import com.galyakyxnya.pvpzone.models.DuelData;
 import com.galyakyxnya.pvpzone.utils.ChatUtils;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.chat.hover.content.Text;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DuelManager {
@@ -43,6 +56,42 @@ public class DuelManager {
             return false;
         }
 
+        // === ЖЕСТКИЙ ЗАПРЕТ: НИКТО ИЗ ИГРОКОВ НЕ ДОЛЖЕН БЫТЬ В ЗОНЕ ===
+        boolean challengerInZone = plugin.getZoneManager().isPlayerInZone(challenger);
+        boolean targetInZone = plugin.getZoneManager().isPlayerInZone(target);
+
+        if (challengerInZone) {
+            challenger.sendMessage(ChatColor.RED + "══════════════════════════════");
+            challenger.sendMessage(ChatColor.RED + "✗ НЕВОЗМОЖНО ВЫЗВАТЬ НА ДУЭЛЬ!");
+            challenger.sendMessage(ChatColor.GRAY + "Вы находитесь в PvP зоне");
+            challenger.sendMessage(ChatColor.GRAY + "Выйдите из зоны перед вызовом");
+            challenger.sendMessage(ChatColor.GRAY + "Используйте: /pvpfix");
+            challenger.sendMessage(ChatColor.RED + "══════════════════════════════");
+            return false;
+        }
+
+        if (targetInZone) {
+            challenger.sendMessage(ChatColor.RED + "══════════════════════════════");
+            challenger.sendMessage(ChatColor.RED + "✗ НЕВОЗМОЖНО ВЫЗВАТЬ НА ДУЭЛЬ!");
+            challenger.sendMessage(ChatColor.GRAY + "Игрок " + ChatColor.YELLOW + target.getName() +
+                    ChatColor.GRAY + " находится в PvP зоне");
+            challenger.sendMessage(ChatColor.GRAY + "Подождите пока игрок выйдет из зоны");
+            challenger.sendMessage(ChatColor.RED + "══════════════════════════════");
+
+            // Также сообщаем цели (если онлайн)
+            if (target.isOnline()) {
+                target.sendMessage(ChatColor.YELLOW + "══════════════════════════════");
+                target.sendMessage(ChatColor.GRAY + "Игрок " + ChatColor.YELLOW + challenger.getName() +
+                        ChatColor.GRAY + " хотел вызвать вас на дуэль");
+                target.sendMessage(ChatColor.GRAY + "Но вы находитесь в PvP зоне");
+                target.sendMessage(ChatColor.GRAY + "Выйдите из зоны чтобы принять вызов");
+                target.sendMessage(ChatColor.GRAY + "Используйте: /pvpfix");
+                target.sendMessage(ChatColor.YELLOW + "══════════════════════════════");
+            }
+            return false;
+        }
+        // === КОНЕЦ ПРОВЕРКИ ЗОНЫ ===
+
         // Проверяем, что игроки не в дуэли
         if (getPlayerDuel(challenger.getUniqueId()) != null) {
             challenger.sendMessage(ChatColor.RED + "Вы уже участвуете в дуэли!");
@@ -61,10 +110,30 @@ public class DuelManager {
                 return false;
             }
         }
-        // Если зона не указана (null) - это нормально, выберем случайную позже
 
-        // Создаем дуэль (передаем zoneName как есть, даже если null)
+        // Создаем дуэль
         DuelData duel = new DuelData(challenger, target, zoneName);
+
+        // Сохраняем текущие локации игроков
+        duel.setChallengerLocation(challenger.getLocation().clone());
+        duel.setTargetLocation(target.getLocation().clone());
+
+        // ВАЖНО: Сохраняем инвентари ОБОИХ игроков
+        // Оба гарантированно НЕ в зоне (по нашей проверке выше)
+        ItemStack[] challengerInventory = challenger.getInventory().getContents().clone();
+        ItemStack[] challengerArmor = challenger.getInventory().getArmorContents().clone();
+        duel.setChallengerOriginalInventory(challengerInventory);
+        duel.setChallengerOriginalArmor(challengerArmor);
+
+        ItemStack[] targetInventory = target.getInventory().getContents().clone();
+        ItemStack[] targetArmor = target.getInventory().getArmorContents().clone();
+        duel.setTargetOriginalInventory(targetInventory);
+        duel.setTargetOriginalArmor(targetArmor);
+
+        // Логируем для отладки
+        plugin.getLogger().info("=== DUEL CHALLENGE ===");
+        plugin.getLogger().info("Challenger: " + challenger.getName() + " (outside zone, items: " + countItems(challengerInventory) + ")");
+        plugin.getLogger().info("Target: " + target.getName() + " (outside zone, items: " + countItems(targetInventory) + ")");
 
         activeDuels.put(duel.getDuelId(), duel);
         playerDuelMap.put(challenger.getUniqueId(), duel.getDuelId());
@@ -73,10 +142,6 @@ public class DuelManager {
         // Кулдаун 30 секунд
         setCooldown(challenger.getUniqueId(), 30000);
 
-        // Сохраняем текущие локации игроков
-        duel.setChallengerLocation(challenger.getLocation().clone());
-        duel.setTargetLocation(target.getLocation().clone());
-
         // Отправляем уведомления с кликабельными кнопками
         sendInteractiveChallengeNotification(duel);
 
@@ -84,6 +149,15 @@ public class DuelManager {
         startTimeoutTimer(duel);
 
         return true;
+    }
+
+    private int countItems(ItemStack[] items) {
+        if (items == null) return 0;
+        int count = 0;
+        for (ItemStack item : items) {
+            if (item != null) count++;
+        }
+        return count;
     }
 
     // ИНТЕРАКТИВНОЕ УВЕДОМЛЕНИЕ О ВЫЗОВЕ
@@ -198,6 +272,17 @@ public class DuelManager {
             duel.setZoneName(zone.getName());
         }
 
+        // ВАЖНО: Добавляем игроков в ZoneManager ПЕРЕД дуэлью
+        // Это нужно для корректной работы систем защиты
+        Player challenger = duel.getChallenger();
+        Player target = duel.getTarget();
+
+        plugin.getZoneManager().addPlayerToZone(challenger);
+        plugin.getZoneManager().addPlayerToZone(target);
+
+        plugin.getLogger().info("Added players to zone for duel: " +
+                challenger.getName() + " and " + target.getName());
+
         // Находим безопасные места в зоне
         Location loc1 = findSafeLocationInZone(zone);
         Location loc2 = findSafeLocationInZone(zone);
@@ -272,13 +357,26 @@ public class DuelManager {
                         }
                     }
 
-                    // Применяем PvP набор
-                    plugin.getKitManager().applyZoneKit(player1, duel.getZoneName());
-                    plugin.getKitManager().applyZoneKit(player2, duel.getZoneName());
+                    // Применяем PvP набор для дуэли
+                    // Используем набор из зоны дуэли
+                    String duelKitName = "default"; // Можно использовать набор из зоны
+                    if (duel.getZoneName() != null) {
+                        ZoneManager.PvpZone duelZone = plugin.getZoneManager().getZone(duel.getZoneName());
+                        if (duelZone != null) {
+                            duelKitName = duelZone.getKitName();
+                        }
+                    }
 
-                    // Добавляем игроков в зону
-                    plugin.getZoneManager().addPlayerToZone(player1);
-                    plugin.getZoneManager().addPlayerToZone(player2);
+                    // Очищаем инвентарь и применяем дуэльный набор
+                    player1.getInventory().clear();
+                    player1.getInventory().setArmorContents(new ItemStack[4]);
+                    player2.getInventory().clear();
+                    player2.getInventory().setArmorContents(new ItemStack[4]);
+
+                    plugin.getKitManager().applyKit(duelKitName, player1);
+                    plugin.getKitManager().applyKit(duelKitName, player2);
+
+                    plugin.getLogger().info("Applied duel kit '" + duelKitName + "' to both players");
 
                     // Оповещение всего сервера
                     Bukkit.broadcastMessage("§7[PvP] §aДуэль между §e" + player1.getName() +
@@ -307,9 +405,6 @@ public class DuelManager {
         // Эффект замедления
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, ticks, 255, false, false));
 
-        // Эффект невидимости (чтобы не видеть рук)
-        player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, ticks, 0, false, false));
-
         // Запрещаем движение
         player.setWalkSpeed(0.0f);
         player.setFlySpeed(0.0f);
@@ -330,7 +425,6 @@ public class DuelManager {
     private void unfreezePlayer(Player player) {
         // Убираем эффекты
         player.removePotionEffect(PotionEffectType.SLOWNESS);
-        player.removePotionEffect(PotionEffectType.INVISIBILITY);
 
         // Восстанавливаем скорость
         player.setWalkSpeed(0.2f);
@@ -493,19 +587,36 @@ public class DuelManager {
     }
 
     // ЗАВЕРШЕНИЕ ДУЭЛИ
+    // ЗАВЕРШЕНИЕ ДУЭЛИ
     public void finishDuel(DuelData duel, DuelData.DuelState state) {
         duel.setState(state);
 
-        // Размораживаем игроков если они заморожены
+        ZoneManager zoneManager = plugin.getZoneManager();
+        PlayerMoveListener moveListener = plugin.getPlayerMoveListener();
+
         Player challenger = duel.getChallenger();
         Player target = duel.getTarget();
 
+        // Восстанавливаем ВСЕХ игроков, независимо от зоны
         if (challenger.isOnline()) {
             unfreezePlayer(challenger);
-            plugin.getZoneManager().removePlayerFromZone(challenger);
-            plugin.getPlayerDataManager().restoreOriginalInventory(challenger);
 
-            // Возвращаем на исходную позицию
+            // Убираем из трекеров
+            if (moveListener != null) {
+                moveListener.removePlayer(challenger.getUniqueId());
+            }
+
+            // ВАЖНО: Удаляем из ZoneManager
+            zoneManager.removePlayerFromZone(challenger);
+
+            // Восстанавливаем инвентарь ИЗ DuelData (гарантированно не в зоне)
+            restoreInventoryFromDuelData(challenger, duel.getChallengerOriginalInventory(),
+                    duel.getChallengerOriginalArmor());
+
+            // === ДОБАВЛЯЕМ: ПОКАЗЫВАЕМ СТАТИСТИКУ ===
+            showPlayerStats(challenger);
+
+            // Телепортируем
             if (duel.getChallengerLocation() != null) {
                 challenger.teleport(duel.getChallengerLocation());
             }
@@ -513,19 +624,91 @@ public class DuelManager {
 
         if (target.isOnline()) {
             unfreezePlayer(target);
-            plugin.getZoneManager().removePlayerFromZone(target);
-            plugin.getPlayerDataManager().restoreOriginalInventory(target);
 
-            // Возвращаем на исходную позицию
+            // Убираем из трекеров
+            if (moveListener != null) {
+                moveListener.removePlayer(target.getUniqueId());
+            }
+
+            // ВАЖНО: Удаляем из ZoneManager
+            zoneManager.removePlayerFromZone(target);
+
+            // Восстанавливаем инвентарь ИЗ DuelData (гарантированно не в зоне)
+            restoreInventoryFromDuelData(target, duel.getTargetOriginalInventory(),
+                    duel.getTargetOriginalArmor());
+
+            // === ДОБАВЛЯЕМ: ПОКАЗЫВАЕМ СТАТИСТИКУ ===
+            showPlayerStats(target);
+
+            // Телепортируем
             if (duel.getTargetLocation() != null) {
                 target.teleport(duel.getTargetLocation());
             }
         }
 
-        // Очищаем данные
+        // Очищаем данные дуэли
         activeDuels.remove(duel.getDuelId());
         playerDuelMap.remove(challenger.getUniqueId());
         playerDuelMap.remove(target.getUniqueId());
+    }
+
+    // === ДОБАВЛЯЕМ НОВЫЙ МЕТОД ===
+    private void showPlayerStats(Player player) {
+        var playerData = plugin.getPlayerDataManager().getPlayerData(player);
+
+        player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        player.sendMessage(ChatColor.YELLOW + "Ваша статистика после дуэли:");
+        player.sendMessage(ChatColor.GRAY + "Рейтинг: " + ChatColor.YELLOW + playerData.getRating() + " очков");
+        player.sendMessage(ChatColor.GRAY + "Очки для покупок: " + ChatColor.YELLOW + playerData.getPoints());
+
+        // Показываем купленные бонусы
+        if (!playerData.getPurchasedBonuses().isEmpty()) {
+            player.sendMessage(ChatColor.GRAY + "Ваши бонусы:");
+            for (var entry : playerData.getPurchasedBonuses().entrySet()) {
+                String bonusName = getBonusName(entry.getKey());
+                player.sendMessage(ChatColor.DARK_GRAY + "  • " + ChatColor.GRAY +
+                        bonusName + ": " + ChatColor.YELLOW +
+                        "уровень " + entry.getValue());
+            }
+        }
+        player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+    }
+
+    private String getBonusName(String bonusId) {
+        switch (bonusId) {
+            case "health": return "Дополнительное сердце";
+            case "speed": return "Увеличение скорости";
+            case "jump": return "Высокий прыжок";
+            case "damage": return "Усиление урона";
+            default: return bonusId;
+        }
+    }
+
+    // ПРОСТОЙ МЕТОД: Восстановление инвентаря ИЗ DuelData
+    private void restoreInventoryFromDuelData(Player player, ItemStack[] savedInventory, ItemStack[] savedArmor) {
+        // Гарантированно восстанавливаем из DuelData (оба игрока не в зоне при вызове)
+        player.getInventory().clear();
+        player.getInventory().setArmorContents(new ItemStack[4]);
+
+        if (savedInventory != null && savedInventory.length > 0) {
+            player.getInventory().setContents(savedInventory);
+        }
+
+        if (savedArmor != null && savedArmor.length > 0) {
+            player.getInventory().setArmorContents(savedArmor);
+        }
+
+        player.updateInventory();
+        player.sendMessage("§a✓ Инвентарь восстановлен");
+
+        // Логируем для отладки
+        ItemStack[] restored = player.getInventory().getContents();
+        int itemCount = countItems(restored);
+        plugin.getLogger().info("Restored " + itemCount + " items for " + player.getName() + " from DuelData");
+
+        if (itemCount > 0 && restored[0] != null) {
+            plugin.getLogger().info("First item: " + restored[0].getType() + " x" + restored[0].getAmount());
+        }
     }
 
     // ОЧИСТКА КУЛДАУНОВ (ежеминутная)

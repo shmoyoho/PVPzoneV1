@@ -35,7 +35,7 @@ public class KitManager {
         loadAllKits();
     }
 
-    // СОХРАНЕНИЕ НАБОРА
+    // СОХРАНЕНИЕ НАБОРА ИЗ ИНВЕНТАРЯ ИГРОКА
     public boolean saveKit(String kitName, Player player) {
         if (kitName == null || kitName.isEmpty()) {
             return false;
@@ -53,7 +53,7 @@ public class KitManager {
         return true;
     }
 
-    // ПРИМЕНЕНИЕ НАБОРА
+    // ПРИМЕНЕНИЕ НАБОРА (БЕЗ ОЧИСТКИ ИНВЕНТАРЯ)
     public boolean applyKit(String kitName, Player player) {
         KitData kit = kits.get(kitName.toLowerCase());
 
@@ -61,8 +61,7 @@ public class KitManager {
             return false;
         }
 
-        player.getInventory().clear();
-        player.getInventory().setArmorContents(new ItemStack[4]);
+        // ВАЖНО: НЕ очищаем инвентарь здесь! Очистка должна быть перед вызовом этого метода
 
         if (kit.items != null) {
             player.getInventory().setContents(kit.items.clone());
@@ -76,13 +75,16 @@ public class KitManager {
         return true;
     }
 
-    // ПРИМЕНЕНИЕ НАБОРА ДЛЯ ЗОНЫ
+    // ПРИМЕНЕНИЕ НАБОРА ДЛЯ ЗОНЫ (С СОХРАНЕНИЕМ И ОЧИСТКОЙ ИНВЕНТАРЯ)
     public boolean applyZoneKit(Player player, String zoneName) {
         String kitName = plugin.getZoneManager().getZoneKitName(zoneName);
 
         if (kitName == null || kitName.isEmpty()) {
             kitName = "default";
         }
+
+        // ВАЖНО: Инвентарь должен быть сохранен перед вызовом этого метода
+        // Инвентарь должен быть очищен перед вызовом этого метода
 
         boolean applied = applyKit(kitName, player);
 
@@ -93,6 +95,11 @@ public class KitManager {
         }
 
         return applied;
+    }
+
+    // ПРИМЕНЕНИЕ НАБОРА БЕЗ ОЧИСТКИ (ДЛЯ PlayerMoveListener)
+    public boolean applyKitOnly(String kitName, Player player) {
+        return applyKit(kitName, player);
     }
 
     // ПРОВЕРКА СУЩЕСТВОВАНИЯ НАБОРА
@@ -108,7 +115,7 @@ public class KitManager {
         return isKitSet("default");
     }
 
-    // ДОБАВЛЕННЫЙ МЕТОД: проверка основного набора
+    // ПРОВЕРКА ОСНОВНОГО НАБОРА
     public boolean isDefaultKitSet() {
         return isKitSet("default");
     }
@@ -117,7 +124,10 @@ public class KitManager {
         saveKit("default", player);
     }
 
+    // МЕТОД ДЛЯ ПРИМЕНЕНИЯ ОСНОВНОГО НАБОРА (УСТАРЕЛО)
     public void applyKitToPlayer(Player player) {
+        // ВАЖНО: Этот метод не должен использоваться для зон!
+        // Он не сохраняет и не очищает инвентарь
         applyKit("default", player);
     }
 

@@ -2,16 +2,16 @@ package com.galyakyxnya.pvpzone.listeners;
 
 import com.galyakyxnya.pvpzone.Main;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
 public class ContainerProtectionListener implements Listener {
@@ -21,6 +21,36 @@ public class ContainerProtectionListener implements Listener {
         this.plugin = plugin;
     }
 
+    // Запрещаем ОТКРЫВАТЬ контейнеры в зоне
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+
+        Player player = event.getPlayer();
+        Block clickedBlock = event.getClickedBlock();
+
+        if (clickedBlock == null) {
+            return;
+        }
+
+        // Проверяем, находится ли игрок в зоне
+        if (!plugin.getZoneManager().isPlayerInZone(player)) {
+            return;
+        }
+
+        // Проверяем, является ли блок контейнером
+        if (isContainer(clickedBlock)) {
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.RED + "✗ Нельзя открывать контейнеры находясь в PvP зоне!");
+
+            // Дополнительный эффект для наглядности
+            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+        }
+    }
+
+    // Запрещаем ВЗАИМОДЕЙСТВОВАТЬ с контейнерами в зоне
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player)) {
@@ -35,34 +65,31 @@ public class ContainerProtectionListener implements Listener {
         }
 
         // Запрещаем взаимодействие с контейнерами в зоне
-        if (event.getInventory().getType() == InventoryType.CHEST ||
-                event.getInventory().getType() == InventoryType.BARREL ||
-                event.getInventory().getType() == InventoryType.SHULKER_BOX ||
-                event.getInventory().getType() == InventoryType.HOPPER ||
-                event.getInventory().getType() == InventoryType.DROPPER ||
-                event.getInventory().getType() == InventoryType.DISPENSER) {
-
+        if (isContainerInventory(event.getInventory().getType())) {
             event.setCancelled(true);
             player.sendMessage(ChatColor.RED + "✗ Нельзя использовать контейнеры в PvP зоне!");
-        }
-
-        // Проверяем, не пытается ли игрок переместить предмет из PvP набора
-        ItemStack currentItem = event.getCurrentItem();
-        if (currentItem != null && currentItem.getType() != Material.AIR) {
-            // Можно добавить проверку на предметы из PvP набора
-            if (isPvpKitItem(currentItem)) {
-                event.setCancelled(true);
-                player.sendMessage(ChatColor.RED + "✗ Нельзя перемещать предметы PvP набора!");
-            }
+            player.closeInventory();
         }
     }
 
-    private boolean isPvpKitItem(ItemStack item) {
-        // Простая проверка - предметы с особыми названиями или зачарованиями
-        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
-            String name = item.getItemMeta().getDisplayName();
-            return name.contains("PvP") || name.contains("дуэль") || name.contains("арена");
-        }
-        return false;
+    // Проверяем, является ли блок контейнером
+    private boolean isContainer(Block block) {
+        return block.getState() instanceof Container;
+    }
+
+    // Проверяем, является ли инвентарь контейнером
+    private boolean isContainerInventory(InventoryType type) {
+        return type == InventoryType.CHEST ||
+                type == InventoryType.BARREL ||
+                type == InventoryType.SHULKER_BOX ||
+                type == InventoryType.ENDER_CHEST ||
+                type == InventoryType.HOPPER ||
+                type == InventoryType.DROPPER ||
+                type == InventoryType.DISPENSER ||
+                type == InventoryType.FURNACE ||
+                type == InventoryType.BLAST_FURNACE ||
+                type == InventoryType.SMOKER ||
+                type == InventoryType.BREWING ||
+                type == InventoryType.LECTERN;
     }
 }

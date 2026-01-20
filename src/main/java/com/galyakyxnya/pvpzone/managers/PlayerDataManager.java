@@ -4,16 +4,13 @@ import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.database.DatabaseManager;
 import com.galyakyxnya.pvpzone.models.PlayerData;
 import org.bukkit.Bukkit;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.io.File;
-import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public class PlayerDataManager {
@@ -24,10 +21,7 @@ public class PlayerDataManager {
     public PlayerDataManager(Main plugin) {
         this.plugin = plugin;
         this.databaseManager = new DatabaseManager(plugin);
-        this.playerDataCache = new HashMap<>();
-
-        // Миграция данных при первом запуске
-        databaseManager.migrateFromYaml();
+        this.playerDataCache = new ConcurrentHashMap<>();
     }
 
     public PlayerData getPlayerData(UUID playerId) {
@@ -40,8 +34,9 @@ public class PlayerDataManager {
 
     private PlayerData getPlayerData(UUID playerId, String playerName) {
         // Проверяем кэш
-        if (playerDataCache.containsKey(playerId)) {
-            return playerDataCache.get(playerId);
+        PlayerData cachedData = playerDataCache.get(playerId);
+        if (cachedData != null) {
+            return cachedData;
         }
 
         // Загружаем из базы данных
@@ -55,15 +50,15 @@ public class PlayerDataManager {
     private void loadPlayerDataFromDatabase(PlayerData data, String playerName) {
         try {
             // Загружаем основную информацию об игроке
-            ResultSet playerRs = databaseManager.getPlayer(data.getPlayerId().toString());
+            ResultSet playerRs = databaseManager.getPlayerSync(data.getPlayerId().toString());
 
             if (playerRs.next()) {
                 data.setRating(playerRs.getInt("rating"));
                 data.setPoints(playerRs.getInt("points"));
             } else {
-                // Игрок не найден, создаем новую запись
+                // Игрок не найден, создаем новую запись асинхронно
                 if (playerName != null) {
-                    databaseManager.savePlayer(
+                    databaseManager.savePlayerAsync(
                             data.getPlayerId().toString(),
                             playerName,
                             data.getRating(),
@@ -73,80 +68,40 @@ public class PlayerDataManager {
             }
 
             // Загружаем бонусы
-            ResultSet bonusesRs = databaseManager.getPlayerBonuses(data.getPlayerId().toString());
+            ResultSet bonusesRs = databaseManager.getPlayerBonusesSync(data.getPlayerId().toString());
             while (bonusesRs.next()) {
                 String bonusId = bonusesRs.getString("bonus_id");
                 int level = bonusesRs.getInt("level");
                 data.getPurchasedBonuses().put(bonusId, level);
             }
 
-            // Загружаем сохраненный инвентарь
-            ResultSet inventoryRs = databaseManager.getPlayerInventory(data.getPlayerId().toString());
-            if (inventoryRs.next()) {
-                String inventoryData = inventoryRs.getString("inventory_data");
-                String armorData = inventoryRs.getString("armor_data");
-
-                // Здесь нужно десериализовать инвентарь из строки
-                // Пока оставим пустым, добавим позже
-            }
-
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Ошибка загрузки данных игрока из базы данных: " + data.getPlayerId(), e);
+            plugin.getLogger().log(Level.WARNING, "Ошибка загрузки данных игрока: " + data.getPlayerId(), e);
         }
     }
 
     public void savePlayerData(PlayerData data) {
-        try {
-            // Сохраняем основную информацию
-            String playerName = Bukkit.getOfflinePlayer(data.getPlayerId()).getName();
-            databaseManager.savePlayer(
+        // Асинхронное сохранение основный данных
+        String playerName = Bukkit.getOfflinePlayer(data.getPlayerId()).getName();
+        databaseManager.savePlayerAsync(
+                data.getPlayerId().toString(),
+                playerName != null ? playerName : "Unknown",
+                data.getRating(),
+                data.getPoints()
+        );
+
+        // Асинхронное сохранение бонусов
+        for (Map.Entry<String, Integer> entry : data.getPurchasedBonuses().entrySet()) {
+            databaseManager.savePlayerBonusAsync(
                     data.getPlayerId().toString(),
-                    playerName != null ? playerName : "Unknown",
-                    data.getRating(),
-                    data.getPoints()
+                    entry.getKey(),
+                    entry.getValue()
             );
-
-            // Сохраняем бонусы
-            for (Map.Entry<String, Integer> entry : data.getPurchasedBonuses().entrySet()) {
-                databaseManager.savePlayerBonus(
-                        data.getPlayerId().toString(),
-                        entry.getKey(),
-                        entry.getValue()
-                );
-            }
-
-            // Сохраняем инвентарь (если есть)
-            if (data.getOriginalInventory() != null && data.getOriginalInventory().length > 0) {
-                // Здесь нужно сериализовать инвентарь в строку
-                String inventoryData = serializeInventory(data.getOriginalInventory());
-                String armorData = serializeInventory(data.getOriginalArmor());
-
-                if (inventoryData != null && armorData != null) {
-                    databaseManager.savePlayerInventory(
-                            data.getPlayerId().toString(),
-                            inventoryData,
-                            armorData
-                    );
-                }
-            }
-
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Ошибка сохранения данных игрока в базу данных: " + data.getPlayerId(), e);
         }
     }
 
-    private String serializeInventory(ItemStack[] items) {
-        // Простая сериализация в Base64 (нужно реализовать)
-        // Можно использовать BukkitObjectOutputStream
-        return null; // Заглушка
-    }
-
-    private ItemStack[] deserializeInventory(String data) {
-        // Десериализация из Base64
-        return new ItemStack[0]; // Заглушка
-    }
-
     public void saveAllData() {
+        // Сохраняем всех игроков из кэша асинхронно
         for (PlayerData data : playerDataCache.values()) {
             savePlayerData(data);
         }
@@ -154,10 +109,6 @@ public class PlayerDataManager {
 
     public void removeCachedData(UUID playerId) {
         playerDataCache.remove(playerId);
-    }
-
-    public Map<UUID, PlayerData> getAllPlayerData() {
-        return new HashMap<>(playerDataCache);
     }
 
     public int getLoadedPlayersCount() {
@@ -169,14 +120,14 @@ public class PlayerDataManager {
         List<PlayerData> topPlayers = new ArrayList<>();
 
         try {
-            ResultSet rs = databaseManager.getTopPlayers(limit);
+            ResultSet rs = databaseManager.getTopPlayersSync(limit);
             while (rs.next()) {
                 UUID playerId = UUID.fromString(rs.getString("uuid"));
                 PlayerData data = getPlayerData(playerId);
                 topPlayers.add(data);
             }
         } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Ошибка получения топ игроков из базы данных", e);
+            plugin.getLogger().log(Level.WARNING, "Ошибка получения топ игроков", e);
         }
 
         return topPlayers;
@@ -185,34 +136,32 @@ public class PlayerDataManager {
     // Метод для обновления инвентаря при входе в зону
     public void saveOriginalInventory(Player player) {
         PlayerData data = getPlayerData(player);
-        data.setOriginalInventory(player.getInventory().getContents());
-        data.setOriginalArmor(player.getInventory().getArmorContents());
-        savePlayerData(data);
+        // Клонируем массивы, чтобы не было ссылок
+        data.setOriginalInventory(player.getInventory().getContents().clone());
+        data.setOriginalArmor(player.getInventory().getArmorContents().clone());
     }
 
     // Метод для восстановления инвентаря при выходе из зоны
     public void restoreOriginalInventory(Player player) {
         PlayerData data = getPlayerData(player);
 
-        // Пока используем старую логику из кэша
-        if (data.getOriginalInventory() != null && data.getOriginalInventory().length > 0) {
+        // Логируем что восстанавливаем
+        plugin.getLogger().info("Restoring inventory for " + player.getName() +
+                " - saved items: " + data.getOriginalInventory().length);
+
+        if (data.getOriginalInventory().length > 0) {
             player.getInventory().setContents(data.getOriginalInventory());
         } else {
             player.getInventory().clear();
         }
 
-        if (data.getOriginalArmor() != null && data.getOriginalArmor().length > 0) {
+        if (data.getOriginalArmor().length > 0) {
             player.getInventory().setArmorContents(data.getOriginalArmor());
         } else {
             player.getInventory().setArmorContents(new ItemStack[4]);
         }
 
         player.updateInventory();
-
-        // Очищаем сохраненный инвентарь
-        data.setOriginalInventory(new ItemStack[0]);
-        data.setOriginalArmor(new ItemStack[0]);
-        savePlayerData(data);
     }
 
     // Метод для сброса всех данных игрока
@@ -221,33 +170,8 @@ public class PlayerDataManager {
         playerDataCache.put(playerId, data);
         savePlayerData(data);
 
-        try {
-            // Удаляем из базы данных
-            databaseManager.removePlayerInventory(playerId.toString());
-            // Удаляем бонусы
-            ResultSet bonuses = databaseManager.getPlayerBonuses(playerId.toString());
-            while (bonuses.next()) {
-                databaseManager.removePlayerBonus(playerId.toString(), bonuses.getString("bonus_id"));
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.SEVERE, "Ошибка сброса данных игрока: " + playerId, e);
-        }
-    }
-
-    // Метод для поиска игрока по имени
-    public UUID findPlayerIdByName(String playerName) {
-        try {
-            // Можно добавить поиск в базу данных
-            for (PlayerData data : playerDataCache.values()) {
-                String name = Bukkit.getOfflinePlayer(data.getPlayerId()).getName();
-                if (name != null && name.equalsIgnoreCase(playerName)) {
-                    return data.getPlayerId();
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Ошибка поиска игрока по имени: " + playerName);
-        }
-        return null;
+        // Очищаем кэш
+        removeCachedData(playerId);
     }
 
     public void closeDatabase() {

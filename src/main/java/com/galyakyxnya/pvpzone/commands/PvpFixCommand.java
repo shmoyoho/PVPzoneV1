@@ -1,3 +1,4 @@
+package com.galyakyxnya.pvpzone.commands;
 
 import com.galyakyxnya.pvpzone.Main;
 import org.bukkit.ChatColor;
