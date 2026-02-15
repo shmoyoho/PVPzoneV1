@@ -102,10 +102,11 @@ public class PlayerMoveListener implements Listener {
         player.getInventory().clear();
         player.getInventory().setArmorContents(new ItemStack[4]);
 
-        // 3. Сохраняем оригинальный инвентарь (который был до очистки)
+        // 3. Сохраняем оригинальный инвентарь (который был до очистки) в память и в БД
         var playerData = plugin.getPlayerDataManager().getPlayerData(player);
         playerData.setOriginalInventory(originalInventory);
         playerData.setOriginalArmor(originalArmor);
+        plugin.getPlayerDataManager().saveOriginalInventoryToDatabase(player);
 
         // Логируем только важное (при первом входе в день или для админов)
         if (plugin.getLogger().isLoggable(java.util.logging.Level.FINE)) {

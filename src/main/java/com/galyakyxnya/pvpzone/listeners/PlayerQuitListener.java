@@ -17,11 +17,14 @@ public class PlayerQuitListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        // Если игрок был в зоне - восстанавливаем инвентарь
+        // Если игрок был в зоне - восстанавливаем инвентарь и сохраняем его в БД для следующего входа
         if (plugin.getZoneManager().isPlayerInZone(player)) {
             plugin.getPlayerDataManager().restoreOriginalInventory(player);
             plugin.getZoneManager().removePlayerFromZone(player);
         }
+
+        // Всегда сохраняем текущий инвентарь в БД (на случай выхода из зоны или перезахода)
+        plugin.getPlayerDataManager().saveInventoryToDatabase(player);
 
         // Удаляем из трекера зон
         PlayerMoveListener moveListener = plugin.getPlayerMoveListener();

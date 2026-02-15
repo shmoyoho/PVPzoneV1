@@ -266,6 +266,9 @@ public class Main extends JavaPlugin {
             Bukkit.getPluginManager().registerEvents(new PlayerQuitListener(this), this);
             listenerCount++;
 
+            Bukkit.getPluginManager().registerEvents(new PlayerJoinListener(this), this);
+            listenerCount++;
+
             Bukkit.getPluginManager().registerEvents(new ItemDropPickupListener(this), this);
             listenerCount++;
 
