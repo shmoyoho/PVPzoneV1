@@ -2,6 +2,7 @@ package com.galyakyxnya.pvpzone.listeners;
 
 import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.managers.ZoneManager;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import com.galyakyxnya.pvpzone.models.DuelData;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -117,19 +118,19 @@ public class PlayerMoveListener implements Listener {
         boolean kitApplied = plugin.getKitManager().applyKitOnly(zone.getKitName(), player);
 
         if (!kitApplied) {
-            player.sendMessage("§c⚠ Набор для этой зоны не настроен!");
+            player.sendMessage(Lang.get(plugin, "zone_no_kit"));
             // Восстанавливаем сохраненный оригинальный инвентарь
             plugin.getPlayerDataManager().restoreOriginalInventory(player);
             return;
         }
 
-        player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-        player.sendMessage(ChatColor.YELLOW + "Вы вошли в PvP зону '" + zone.getName() + "'!");
-        player.sendMessage(ChatColor.GRAY + "Набор: " + ChatColor.WHITE + zone.getKitName());
+        player.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        player.sendMessage(Lang.get(plugin, "zone_enter", "%zone%", zone.getName()));
+        player.sendMessage(Lang.get(plugin, "zone_kit", "%kit%", zone.getKitName()));
 
         // Показываем рейтинг
         showPlayerRating(player);
-        player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        player.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
         // Применяем бонусы если включены
         if (zone.isBonusesEnabled()) {
@@ -156,14 +157,14 @@ public class PlayerMoveListener implements Listener {
         removePlayerBonuses(player);
 
         // Отправляем сообщение
-        player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-        player.sendMessage(ChatColor.YELLOW + "Вы вышли из PvP зоны!");
-        player.sendMessage(ChatColor.GRAY + "Название: " + ChatColor.WHITE + zone.getName());
+        player.sendMessage(Lang.get(plugin, "zone_exit_title"));
+        player.sendMessage(Lang.get(plugin, "zone_exit"));
+        player.sendMessage(Lang.get(plugin, "zone_exit_name", "%zone%", zone.getName()));
 
         // Показываем итоговую статистику
         showExitStats(player);
 
-        player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        player.sendMessage(Lang.get(plugin, "zone_exit_title"));
     }
 
     private void showPlayerRating(Player player) {
@@ -179,31 +180,24 @@ public class PlayerMoveListener implements Listener {
             }
         }
 
-        player.sendMessage(ChatColor.GRAY + "Ваш рейтинг: " +
-                ChatColor.YELLOW + playerData.getRating() + " очков");
+        player.sendMessage(Lang.get(plugin, "zone_rating", "%rating%", String.valueOf(playerData.getRating())));
 
         if (playerRank > 0) {
-            player.sendMessage(ChatColor.GRAY + "Место в топе: " +
-                    ChatColor.YELLOW + playerRank + ChatColor.GRAY + "/" +
-                    ChatColor.YELLOW + topPlayers.size());
+            player.sendMessage(Lang.get(plugin, "zone_rank", "%rank%", String.valueOf(playerRank), "%total%", String.valueOf(topPlayers.size())));
         }
 
-        player.sendMessage(ChatColor.GRAY + "Очки для покупок: " +
-                ChatColor.YELLOW + playerData.getPoints());
+        player.sendMessage(Lang.get(plugin, "zone_stats_points", "%points%", String.valueOf(playerData.getPoints())));
     }
 
     private void showExitStats(Player player) {
         var playerData = plugin.getPlayerDataManager().getPlayerData(player);
 
-        player.sendMessage(ChatColor.GRAY + "Ваша статистика:");
-        player.sendMessage(ChatColor.GRAY + "  Рейтинг: " + ChatColor.YELLOW +
-                playerData.getRating() + " очков");
-        player.sendMessage(ChatColor.GRAY + "  Очки для покупок: " + ChatColor.YELLOW +
-                playerData.getPoints());
+        player.sendMessage(Lang.get(plugin, "zone_stats"));
+        player.sendMessage(Lang.get(plugin, "zone_stats_rating", "%rating%", String.valueOf(playerData.getRating())));
+        player.sendMessage(Lang.get(plugin, "zone_stats_points", "%points%", String.valueOf(playerData.getPoints())));
 
         if (!playerData.getPurchasedBonuses().isEmpty()) {
-            player.sendMessage(ChatColor.GRAY + "  Активные бонусы: " + ChatColor.YELLOW +
-                    playerData.getPurchasedBonuses().size());
+            player.sendMessage(Lang.get(plugin, "zone_stats_bonuses", "%count%", String.valueOf(playerData.getPurchasedBonuses().size())));
         }
     }
 
@@ -220,11 +214,11 @@ public class PlayerMoveListener implements Listener {
 
         // Бонус здоровья
         if (healthBonus > 0) {
-            int extraHearts = playerData.getBonusLevel("health"); // Получаем количество сердец
+            int extraHearts = playerData.getBonusLevel("health");
             player.setMaxHealth(20.0 + healthBonus);
             player.setHealth(Math.min(player.getHealth() + healthBonus, player.getMaxHealth()));
-            player.sendMessage(ChatColor.GREEN + "✓ Бонус здоровья: +" + extraHearts +
-                    " сердце" + (extraHearts > 1 ? "ца" : ""));
+            String key = extraHearts > 1 ? "zone_bonus_health_plural" : "zone_bonus_health";
+            player.sendMessage(Lang.get(plugin, key, "%value%", String.valueOf(extraHearts)));
             hasAnyBonus = true;
         }
 
@@ -232,8 +226,7 @@ public class PlayerMoveListener implements Listener {
         if (speedBonus > 0) {
             float newSpeed = (float) Math.min(1.0, 0.2 + speedBonus);
             player.setWalkSpeed(newSpeed);
-            player.sendMessage(ChatColor.GREEN + "✓ Бонус скорости: +" +
-                    String.format("%.0f", speedBonus * 100) + "%");
+            player.sendMessage(Lang.get(plugin, "zone_bonus_speed", "%value%", String.format("%.0f", speedBonus * 100)));
             hasAnyBonus = true;
         }
 
@@ -248,31 +241,29 @@ public class PlayerMoveListener implements Listener {
                         true, // Частицы
                         false // Амбиент
                 ));
-                player.sendMessage(ChatColor.GREEN + "✓ Бонус прыжка: +" +
-                        String.format("%.0f", jumpBonus * 100) + "%");
+                player.sendMessage(Lang.get(plugin, "zone_bonus_jump", "%value%", String.format("%.0f", jumpBonus * 100)));
                 hasAnyBonus = true;
             }
         }
 
         // Бонус урона (через эффект)
         if (damageBonus > 0) {
-            int damageAmplifier = (int) (damageBonus / 0.05); // 1 уровень = STRENGTH I
+            int damageAmplifier = (int) (damageBonus / 0.05);
             if (damageAmplifier > 0) {
                 player.addPotionEffect(new PotionEffect(
                         PotionEffectType.STRENGTH,
-                        Integer.MAX_VALUE, // Бесконечная длительность
-                        damageAmplifier - 1, // Уровень эффекта (0 = I, 1 = II и т.д.)
-                        true, // Частицы
-                        false // Амбиент
+                        Integer.MAX_VALUE,
+                        damageAmplifier - 1,
+                        true,
+                        false
                 ));
-                player.sendMessage(ChatColor.GREEN + "✓ Бонус урона: +" +
-                        String.format("%.0f", damageBonus * 100) + "%");
+                player.sendMessage(Lang.get(plugin, "zone_bonus_damage", "%value%", String.format("%.0f", damageBonus * 100)));
                 hasAnyBonus = true;
             }
         }
 
         if (!hasAnyBonus) {
-            player.sendMessage(ChatColor.GRAY + "У вас нет активных бонусов");
+            player.sendMessage(Lang.get(plugin, "zone_bonus_none"));
         }
     }
 
@@ -285,7 +276,7 @@ public class PlayerMoveListener implements Listener {
         player.removePotionEffect(PotionEffectType.JUMP_BOOST);
         player.removePotionEffect(PotionEffectType.STRENGTH);
 
-        player.sendMessage(ChatColor.GRAY + "Все бонусы отключены");
+        player.sendMessage(Lang.get(plugin, "zone_bonuses_off"));
     }
 
     // Метод для очистки при выходе игрока

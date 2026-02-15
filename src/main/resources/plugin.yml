@@ -55,6 +55,10 @@ commands:
     description: Исправить PvP состояние
     usage: /pvpfix
 
+  pvpeffect:
+    description: Вкл/выкл эффект огненных следов для лидера рейтинга
+    usage: /pvpeffect
+
 permissions:
   pvpzone.*:
     description: Дает все права PvP Zone

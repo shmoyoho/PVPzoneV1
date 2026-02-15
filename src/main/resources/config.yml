@@ -1,4 +1,6 @@
 # PvP Zone Plugin Configuration
+# language: "ru" (Russian) | "en" (English)
+language: "en"
 
 leader-effects:
   enabled: true

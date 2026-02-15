@@ -1,6 +1,7 @@
 package com.galyakyxnya.pvpzone.listeners;
 
 import com.galyakyxnya.pvpzone.Main;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -38,8 +39,8 @@ public class PlayerJoinListener implements Listener {
         // Можно добавить уведомление о топе
         var playerData = plugin.getPlayerDataManager().getPlayerData(player);
         if (playerData.getRating() > 0) {
-            player.sendMessage("§7Ваш рейтинг: §e" + playerData.getRating() + " очков");
-            player.sendMessage("§7Очки для покупок: §e" + playerData.getPoints());
+            player.sendMessage(Lang.get(plugin, "join_rating", "%rating%", String.valueOf(playerData.getRating())));
+            player.sendMessage(Lang.get(plugin, "join_points", "%points%", String.valueOf(playerData.getPoints())));
         }
     }
 

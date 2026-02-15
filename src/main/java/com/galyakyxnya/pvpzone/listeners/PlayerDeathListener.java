@@ -2,6 +2,7 @@ package com.galyakyxnya.pvpzone.listeners;
 
 import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.models.DuelData;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -85,31 +86,29 @@ public class PlayerDeathListener implements Listener {
         event.setDeathMessage(null);
 
         // Отправляем сообщения игрокам
-        winner.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-        winner.sendMessage(ChatColor.GREEN + "⚔ ВЫ ПОБЕДИЛИ В ДУЭЛИ!");
-        winner.sendMessage(ChatColor.GRAY + "Противник: " + ChatColor.RED + loser.getName());
-        winner.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        winner.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        winner.sendMessage(Lang.get(plugin, "death_duel_winner"));
+        winner.sendMessage(Lang.get(plugin, "death_duel_loser_opponent") + ChatColor.RED + loser.getName());
+        winner.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
-        loser.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-        loser.sendMessage(ChatColor.RED + "☠ ВЫ ПРОИГРАЛИ ДУЭЛЬ!");
-        loser.sendMessage(ChatColor.GRAY + "Победитель: " + ChatColor.GREEN + winner.getName());
-        loser.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        loser.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        loser.sendMessage(Lang.get(plugin, "death_duel_loser"));
+        loser.sendMessage(Lang.get(plugin, "death_duel_loser_opponent") + ChatColor.GREEN + winner.getName());
+        loser.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
         // Награда победителю
         var winnerData = plugin.getPlayerDataManager().getPlayerData(winner);
         winnerData.addRating(3); // +3 к рейтингу за победу в дуэли
         winnerData.addPoints(5); // +5 очков за победу
         plugin.getPlayerDataManager().savePlayerData(winnerData);
+        if (plugin.getLeaderEffectManager() != null) plugin.getLeaderEffectManager().invalidateLeaderCache();
 
         // Сообщение для проигравшего
         var loserData = plugin.getPlayerDataManager().getPlayerData(loser);
-        loser.sendMessage(ChatColor.GRAY + "Ваш рейтинг: " + ChatColor.YELLOW + loserData.getRating());
-        loser.sendMessage(ChatColor.GRAY + "Ваши очки: " + ChatColor.YELLOW + loserData.getPoints());
+        loser.sendMessage(Lang.get(plugin, "death_rating_loser") + ChatColor.YELLOW + loserData.getRating() + Lang.get(plugin, "death_rating_points"));
+        loser.sendMessage(Lang.get(plugin, "join_points", "%points%", String.valueOf(loserData.getPoints())));
 
-        // Оповещение всего сервера
-        Bukkit.broadcastMessage(ChatColor.GOLD + "[PvP] " + ChatColor.GREEN + winner.getName() +
-                ChatColor.GOLD + " победил в дуэли против " +
-                ChatColor.RED + loser.getName());
+        Bukkit.broadcastMessage(Lang.get(plugin, "death_duel_broadcast", "%winner%", winner.getName(), "%loser%", loser.getName()));
 
         // Завершаем дуэль
         plugin.getDuelManager().finishDuel(duel, DuelData.DuelState.FINISHED);
@@ -122,26 +121,21 @@ public class PlayerDeathListener implements Listener {
         // Убираем стандартное сообщение о смерти
         event.setDeathMessage(null);
 
-        victim.sendMessage(ChatColor.RED + "☠ Вы умерли во время дуэли!");
+        victim.sendMessage(Lang.get(plugin, "death_duel_death"));
 
         if (opponent != null && opponent.isOnline()) {
-            opponent.sendMessage(ChatColor.GREEN + "⚔ Ваш противник " +
-                    ChatColor.RED + victim.getName() +
-                    ChatColor.GREEN + " умер!");
-            opponent.sendMessage(ChatColor.GRAY + "Дуэль завершена.");
+            opponent.sendMessage(Lang.get(plugin, "death_duel_opponent_died", "%name%", victim.getName()));
+            opponent.sendMessage(Lang.get(plugin, "death_duel_ended"));
 
-            // Небольшая награда выжившему
             var opponentData = plugin.getPlayerDataManager().getPlayerData(opponent);
             opponentData.addRating(1);
             opponentData.addPoints(2);
             plugin.getPlayerDataManager().savePlayerData(opponentData);
-            opponent.sendMessage(ChatColor.GREEN + "+1 к рейтингу, +2 очка за выживание в дуэли");
+            if (plugin.getLeaderEffectManager() != null) plugin.getLeaderEffectManager().invalidateLeaderCache();
+            opponent.sendMessage(Lang.get(plugin, "death_opponent_reward"));
         }
 
-        // Оповещение сервера
-        Bukkit.broadcastMessage(ChatColor.GOLD + "[PvP] Дуэль завершена: " +
-                ChatColor.RED + victim.getName() +
-                ChatColor.GOLD + " умер");
+        Bukkit.broadcastMessage(Lang.get(plugin, "death_duel_draw_broadcast", "%name%", victim.getName()));
 
         // Завершаем дуэль
         plugin.getDuelManager().finishDuel(duel, DuelData.DuelState.FINISHED);
@@ -171,25 +165,20 @@ public class PlayerDeathListener implements Listener {
 
         // Сохраняем данные УБИЙЦЫ
         plugin.getPlayerDataManager().savePlayerData(killerData);
+        if (plugin.getLeaderEffectManager() != null) plugin.getLeaderEffectManager().invalidateLeaderCache();
 
-        // Обновляем сообщение смерти
-        event.setDeathMessage(ChatColor.GOLD + "[PvP] " +
-                ChatColor.RED + victim.getName() +
-                ChatColor.GRAY + " был убит игроком " +
-                ChatColor.GREEN + killer.getName());
+        event.setDeathMessage(Lang.get(plugin, "death_pvp_kill", "%victim%", victim.getName(), "%killer%", killer.getName()));
 
-        // Отправляем сообщения
-        killer.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-        killer.sendMessage(ChatColor.GREEN + "Вы победили в PvP!");
-        killer.sendMessage(ChatColor.YELLOW + "+1 к рейтингу (Всего: " + killerData.getRating() + ")");
-        killer.sendMessage(ChatColor.YELLOW + "+1 очко для покупок (Всего: " + killerData.getPoints() + ")");
-        killer.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        killer.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        killer.sendMessage(Lang.get(plugin, "death_pvp_win"));
+        killer.sendMessage(Lang.get(plugin, "death_pvp_win_rating", "%rating%", String.valueOf(killerData.getRating())));
+        killer.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
-        victim.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-        victim.sendMessage(ChatColor.RED + "Вы проиграли в PvP!");
-        victim.sendMessage(ChatColor.YELLOW + "Ваш рейтинг: " + victimData.getRating());
-        victim.sendMessage(ChatColor.YELLOW + "Ваши очки: " + victimData.getPoints());
-        victim.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+        victim.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        victim.sendMessage(Lang.get(plugin, "death_pvp_lose"));
+        victim.sendMessage(Lang.get(plugin, "death_pvp_victim_rating", "%rating%", String.valueOf(victimData.getRating())));
+        victim.sendMessage(Lang.get(plugin, "death_pvp_victim_points", "%points%", String.valueOf(victimData.getPoints())));
+        victim.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
         // Восстанавливаем PvP набор для жертвы после респавна
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -222,13 +211,11 @@ public class PlayerDeathListener implements Listener {
         if (currentRating % 3 == 0 && currentRating > 0) {
             killerData.addPoints(1); // дополнительное очко за каждые 3 убийства
 
-            killer.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-            killer.sendMessage(ChatColor.LIGHT_PURPLE + "★ Киллстрик! ★");
-            killer.sendMessage(ChatColor.YELLOW + "+1 дополнительное очко за " +
-                    currentRating + " убийств подряд!");
-            killer.sendMessage(ChatColor.GRAY + "Всего очков: " + ChatColor.YELLOW +
-                    killerData.getPoints());
-            killer.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+            killer.sendMessage(Lang.get(plugin, "zone_enter_title"));
+            killer.sendMessage(Lang.get(plugin, "killstreak_title"));
+            killer.sendMessage(Lang.get(plugin, "killstreak_bonus", "%count%", String.valueOf(currentRating)));
+            killer.sendMessage(Lang.get(plugin, "killstreak_points", "%points%", String.valueOf(killerData.getPoints())));
+            killer.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
             // Сохраняем данные после начисления киллстрика
             plugin.getPlayerDataManager().savePlayerData(killerData);
