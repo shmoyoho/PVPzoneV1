@@ -1,6 +1,7 @@
 package com.galyakyxnya.pvpzone.commands;
 
 import com.galyakyxnya.pvpzone.Main;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -17,14 +18,14 @@ public class PvpZ2Command implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("§cТолько игрок может использовать эту команду!");
+            sender.sendMessage(Lang.get(plugin, "point_only_player"));
             return true;
         }
 
         Player player = (Player) sender;
 
         if (!player.hasPermission("pvpzone.admin")) {
-            player.sendMessage("§cНет прав!");
+            player.sendMessage(Lang.get(plugin, "point_no_permission"));
             return true;
         }
 
@@ -37,28 +38,24 @@ public class PvpZ2Command implements CommandExecutor {
         plugin.getConfig().set("temp.pos2.z", location.getZ());
         plugin.saveConfig();
 
-        player.sendMessage("§a══════════════════════════════");
-        player.sendMessage("§aВторая точка установлена!");
-        player.sendMessage("§7Координаты: §eX: " + String.format("%.1f", location.getX()) +
-                " §7| §eY: " + String.format("%.1f", location.getY()) +
-                " §7| §eZ: " + String.format("%.1f", location.getZ()));
-        player.sendMessage("§7Мир: §e" + location.getWorld().getName());
-        player.sendMessage("§a══════════════════════════════");
+        player.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        player.sendMessage(Lang.get(plugin, "point_second_ok"));
+        player.sendMessage(Lang.get(plugin, "point_coords", "%x%", String.format("%.1f", location.getX()), "%y%", String.format("%.1f", location.getY()), "%z%", String.format("%.1f", location.getZ())));
+        player.sendMessage(Lang.get(plugin, "point_world", "%world%", location.getWorld().getName()));
+        player.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
-        // Проверяем, есть ли первая точка
         if (!plugin.getConfig().contains("temp.pos1")) {
-            player.sendMessage("§cПредупреждение: первая точка не установлена!");
-            player.sendMessage("§7Используйте §e/pvpz1 §7для установки первой точки");
+            player.sendMessage(Lang.get(plugin, "point_warning_no_first"));
+            player.sendMessage(Lang.get(plugin, "point_use_pvpz1"));
         } else {
-            // Показываем информацию о будущей зоне
             Location pos1 = loadLocationFromConfig("temp.pos1");
             if (pos1 != null) {
-                player.sendMessage("§7Расстояние между точками:");
-                player.sendMessage("§7По X: §e" + String.format("%.1f", Math.abs(location.getX() - pos1.getX())) + " блоков");
-                player.sendMessage("§7По Z: §e" + String.format("%.1f", Math.abs(location.getZ() - pos1.getZ())) + " блоков");
-                player.sendMessage("§7Зона будет охватывать всю высоту мира!");
+                player.sendMessage(Lang.get(plugin, "point_distance_title"));
+                player.sendMessage(Lang.get(plugin, "point_distance_x", "%value%", String.format("%.1f", Math.abs(location.getX() - pos1.getX()))));
+                player.sendMessage(Lang.get(plugin, "point_distance_z", "%value%", String.format("%.1f", Math.abs(location.getZ() - pos1.getZ()))));
+                player.sendMessage(Lang.get(plugin, "point_height_full"));
             }
-            player.sendMessage("§7Теперь создайте зону: §e/pvpzone create <название>");
+            player.sendMessage(Lang.get(plugin, "point_next_create_only"));
         }
 
         return true;

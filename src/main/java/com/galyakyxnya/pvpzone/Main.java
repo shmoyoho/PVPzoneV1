@@ -4,9 +4,16 @@ import org.bukkit.entity.Player;
 import com.galyakyxnya.pvpzone.commands.*;
 import com.galyakyxnya.pvpzone.listeners.*;
 import com.galyakyxnya.pvpzone.managers.*;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 public class Main extends JavaPlugin {
     private static Main instance;
@@ -37,6 +44,10 @@ public class Main extends JavaPlugin {
                 getLogger().info("Создана папка плагина: " + getDataFolder().getAbsolutePath());
             }
         }
+        saveDefaultConfig();
+        reloadConfig();
+        ensureConfigDefaults(); // восстанавливаем отсутствующие ключи (language и др.) из дефолтного config в jar
+        Lang.reload(this);
 
         // Инициализация менеджеров в правильном порядке
         try {
@@ -58,9 +69,6 @@ public class Main extends JavaPlugin {
             // 6. Слушатели (зависят от менеджеров)
             this.inventoryClickListener = new InventoryClickListener(this);
             this.playerMoveListener = new PlayerMoveListener(this);
-            this.leaderEffectManager = new LeaderEffectManager(this);
-
-            // После инициализации менеджеров
             this.leaderEffectManager = new LeaderEffectManager(this);
 
         } catch (Exception e) {
@@ -246,7 +254,11 @@ public class Main extends JavaPlugin {
             getLogger().warning("Команда /pvpshop не найдена в plugin.yml!");
         }
 
-        getLogger().info("Зарегистрировано команд: 11");
+        if (getCommand("pvpeffect") != null) {
+            getCommand("pvpeffect").setExecutor(new PvpEffectCommand(this));
+        }
+
+        getLogger().info("Зарегистрировано команд: 12");
     }
 
     private void registerListeners() {
@@ -319,9 +331,33 @@ public class Main extends JavaPlugin {
         return isShuttingDown;
     }
 
+    /** Восстанавливает в config отсутствующие ключи (language, leader-effects и т.д.) из config.yml в jar. */
+    private void ensureConfigDefaults() {
+        InputStream stream = getResource("config.yml");
+        if (stream == null) return;
+        try (stream) {
+            FileConfiguration defaultCfg = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(stream, StandardCharsets.UTF_8));
+            FileConfiguration config = getConfig();
+            boolean changed = false;
+            for (String key : defaultCfg.getKeys(true)) {
+                if (defaultCfg.isConfigurationSection(key)) continue;
+                if (!config.contains(key)) {
+                    config.set(key, defaultCfg.get(key));
+                    changed = true;
+                }
+            }
+            if (changed) saveConfig();
+        } catch (Exception e) {
+            getLogger().warning("Не удалось применить дефолтные ключи config: " + e.getMessage());
+        }
+    }
+
     // Метод для перезагрузки плагина
     public void reload() {
         getLogger().info(ChatColor.YELLOW + "Перезагрузка PvP Zone Plugin...");
+        reloadConfig();
+        Lang.reload(this);
 
         try {
             // Перезагружаем зоны
