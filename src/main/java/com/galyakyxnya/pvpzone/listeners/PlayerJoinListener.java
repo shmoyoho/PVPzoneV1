@@ -20,7 +20,8 @@ public class PlayerJoinListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
 
-        // Восстанавливаем инвентарь из БД на следующий тик (после полной загрузки игрока)
+        // Восстанавливаем инвентарь только если игрок вышел в PvP-зоне (флаг restore_inventory_on_join)
+        // Затем, если он всё ещё в зоне — выдаём PvP-набор (задержка, чтобы игрок успел оказаться на своей позиции)
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
             var playerData = plugin.getPlayerDataManager().getPlayerData(player);
@@ -28,6 +29,16 @@ public class PlayerJoinListener implements Listener {
             boolean hasSavedArmor = hasAnyItem(playerData.getOriginalArmor());
             if (hasSavedInv || hasSavedArmor) {
                 plugin.getPlayerDataManager().restoreOriginalInventory(player);
+                plugin.getPlayerDataManager().clearRestoreInventoryOnJoinFlag(player.getUniqueId());
+                // Проверяем зону с небольшой задержкой, чтобы игрок уже был на своей позиции в мире
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    var zone = plugin.getZoneManager().findZoneAtLocation(player.getLocation());
+                    if (zone != null) {
+                        var moveListener = plugin.getPlayerMoveListener();
+                        if (moveListener != null) moveListener.applyZoneToPlayer(player, zone);
+                    }
+                }, 20L);
             }
         }, 1L);
 

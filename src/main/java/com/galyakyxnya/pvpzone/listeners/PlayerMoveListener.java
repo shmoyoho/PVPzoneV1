@@ -88,38 +88,31 @@ public class PlayerMoveListener implements Listener {
         }
     }
 
-    private void handleEnterZone(Player player, ZoneManager.PvpZone zone) {
-        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем еще раз что игрок не в дуэли
-        // Это дополнительная защита на случай race condition
-        if (plugin.getDuelManager().getPlayerDuel(player.getUniqueId()) != null) {
-            return;
-        }
+    /**
+     * Применяет PvP-зону к игроку: сохраняет текущий инвентарь как «оригинал», выдаёт набор, добавляет в трекинг.
+     * Вызывается при входе в зону (move) и при входе на сервер, если игрок заспавнился в зоне (join после выхода в зоне).
+     */
+    public void applyZoneToPlayer(Player player, ZoneManager.PvpZone zone) {
+        if (plugin.getDuelManager().getPlayerDuel(player.getUniqueId()) != null) return;
 
-        // 1. Получаем текущий инвентарь ДО любых изменений
         ItemStack[] originalInventory = player.getInventory().getContents().clone();
         ItemStack[] originalArmor = player.getInventory().getArmorContents().clone();
 
-        // 2. Очищаем инвентарь
         player.getInventory().clear();
         player.getInventory().setArmorContents(new ItemStack[4]);
 
-        // 3. Сохраняем оригинальный инвентарь (который был до очистки) в память и в БД
         var playerData = plugin.getPlayerDataManager().getPlayerData(player);
         playerData.setOriginalInventory(originalInventory);
         playerData.setOriginalArmor(originalArmor);
         plugin.getPlayerDataManager().saveOriginalInventoryToDatabase(player);
 
-        // Логируем только важное (при первом входе в день или для админов)
         if (plugin.getLogger().isLoggable(java.util.logging.Level.FINE)) {
             plugin.getLogger().fine("Игрок " + player.getName() + " вошел в зону " + zone.getName());
         }
 
-        // 4. Применяем PvP набор
         boolean kitApplied = plugin.getKitManager().applyKitOnly(zone.getKitName(), player);
-
         if (!kitApplied) {
             player.sendMessage(Lang.get(plugin, "zone_no_kit"));
-            // Восстанавливаем сохраненный оригинальный инвентарь
             plugin.getPlayerDataManager().restoreOriginalInventory(player);
             return;
         }
@@ -127,18 +120,17 @@ public class PlayerMoveListener implements Listener {
         player.sendMessage(Lang.get(plugin, "zone_enter_title"));
         player.sendMessage(Lang.get(plugin, "zone_enter", "%zone%", zone.getName()));
         player.sendMessage(Lang.get(plugin, "zone_kit", "%kit%", zone.getKitName()));
-
-        // Показываем рейтинг
         showPlayerRating(player);
         player.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
-        // Применяем бонусы если включены
-        if (zone.isBonusesEnabled()) {
-            applyPlayerBonuses(player);
-        }
+        if (zone.isBonusesEnabled()) applyPlayerBonuses(player);
 
-        // Добавляем игрока в ZoneManager
         plugin.getZoneManager().addPlayerToZone(player);
+        playerZones.put(player.getUniqueId(), zone.getName());
+    }
+
+    private void handleEnterZone(Player player, ZoneManager.PvpZone zone) {
+        applyZoneToPlayer(player, zone);
     }
 
     private void handleExitZone(Player player, ZoneManager.PvpZone zone) {

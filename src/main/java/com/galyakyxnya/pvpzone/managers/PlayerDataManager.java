@@ -80,9 +80,14 @@ public class PlayerDataManager {
                 data.getPurchasedBonuses().put(bonusId, level);
             }
 
-            // Загружаем сохранённый инвентарь (для восстановления после перезахода)
+            // Загружаем сохранённый инвентарь только если флаг «восстановить при входе» (игрок вышел в PvP-зоне)
             try (ResultSet invRs = databaseManager.getPlayerInventorySync(data.getPlayerId().toString())) {
                 if (invRs.next()) {
+                    int restoreOnJoin = 0;
+                    try {
+                        restoreOnJoin = invRs.getInt("restore_inventory_on_join");
+                    } catch (SQLException ignored) { }
+                    if (restoreOnJoin != 1) return;
                     String invData = invRs.getString("inventory_data");
                     String armorData = invRs.getString("armor_data");
                     if (invData != null && !invData.isEmpty()) {
@@ -130,19 +135,7 @@ public class PlayerDataManager {
         }
     }
 
-    /** Сохраняет текущий инвентарь игрока в БД (для восстановления при следующем входе) */
-    public void saveInventoryToDatabase(Player player) {
-        if (player == null) return;
-        ItemStack[] contents = player.getInventory().getContents();
-        ItemStack[] armor = player.getInventory().getArmorContents();
-        String invData = serializeItemStacks(contents);
-        String armorData = serializeItemStacks(armor);
-        if (!invData.isEmpty() || !armorData.isEmpty()) {
-            databaseManager.savePlayerInventoryAsync(player.getUniqueId().toString(), invData, armorData);
-        }
-    }
-
-    /** Сохраняет оригинальный инвентарь из PlayerData в БД (вызывать при входе в PvP зону) */
+    /** Сохраняет оригинальный инвентарь из PlayerData в БД (вызывать при входе в PvP зону). Флаг restoreOnJoin = false. */
     public void saveOriginalInventoryToDatabase(Player player) {
         if (player == null) return;
         PlayerData data = getPlayerData(player);
@@ -151,7 +144,22 @@ public class PlayerDataManager {
         if ((inv == null || inv.length == 0) && (armor == null || armor.length == 0)) return;
         String invData = serializeItemStacks(inv != null ? inv : new ItemStack[0]);
         String armorData = serializeItemStacks(armor != null ? armor : new ItemStack[0]);
-        databaseManager.savePlayerInventoryAsync(player.getUniqueId().toString(), invData, armorData);
+        databaseManager.savePlayerInventoryAsync(player.getUniqueId().toString(), invData, armorData, false);
+    }
+
+    /** Включить флаг «восстановить инвентарь при следующем входе» (игрок вышел, находясь в PvP-зоне). */
+    public void setRestoreInventoryOnJoinTrue(UUID playerId) {
+        databaseManager.setRestoreInventoryOnJoinTrue(playerId.toString());
+    }
+
+    /** Очистить сохранённый инвентарь и флаг (игрок вышел не в PvP-зоне — инвентарем управляет сервер). */
+    public void clearPlayerInventoryAndRestoreFlag(UUID playerId) {
+        databaseManager.clearPlayerInventoryAndRestoreFlag(playerId.toString());
+    }
+
+    /** Сбросить флаг после восстановления инвентаря при входе. */
+    public void clearRestoreInventoryOnJoinFlag(UUID playerId) {
+        databaseManager.clearRestoreInventoryOnJoinFlag(playerId.toString());
     }
 
     /** Загружает сохранённый инвентарь из БД (может вернуть пустые массивы) */
