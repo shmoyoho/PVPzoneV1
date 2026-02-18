@@ -1,7 +1,7 @@
 package com.galyakyxnya.pvpzone.commands;
 
 import com.galyakyxnya.pvpzone.Main;
-import org.bukkit.ChatColor;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -17,7 +17,7 @@ public class PvpFixCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("Только для игроков!");
+            sender.sendMessage(Lang.get(plugin, "player_only"));
             return true;
         }
 
@@ -36,8 +36,8 @@ public class PvpFixCommand implements CommandExecutor {
         // 4. Очищаем трекер зоны
         plugin.getPlayerMoveListener().removePlayer(player.getUniqueId());
 
-        player.sendMessage(ChatColor.GREEN + "✓ PvP состояние сброшено!");
-        player.sendMessage(ChatColor.GRAY + "Инвентарь восстановлен");
+        player.sendMessage(Lang.get(plugin, "fix_reset"));
+        player.sendMessage(Lang.get(plugin, "fix_restored"));
 
         return true;
     }

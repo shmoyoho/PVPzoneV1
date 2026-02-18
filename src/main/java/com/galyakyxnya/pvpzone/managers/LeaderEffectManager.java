@@ -2,138 +2,180 @@ package com.galyakyxnya.pvpzone.managers;
 
 import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.models.PlayerData;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.io.File;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class LeaderEffectManager {
+    private static final long CACHE_TICKS = 60L;   // Обновлять топ раз в 3 сек
+    private static final long AURA_INTERVAL_MS = 10000L;
+
     private final Main plugin;
     private final Set<UUID> currentLeaders = new HashSet<>();
-    private BukkitRunnable effectTask;
+    private final Set<UUID> effectDisabledByPlayer = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Location> lastLocations = new HashMap<>();
+    private BukkitRunnable effectTask;
+
+    private UUID cachedLeaderId;
+    private long cacheTime;
+    private long lastAuraTime;
 
     public LeaderEffectManager(Main plugin) {
         this.plugin = plugin;
+        loadEffectDisabled();
         startEffects();
     }
 
+    private void loadEffectDisabled() {
+        File f = new File(plugin.getDataFolder(), "leader_effect_disabled.yml");
+        if (!f.exists()) return;
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(f);
+        List<String> list = cfg.getStringList("uuids");
+        if (list != null) {
+            for (String s : list) {
+                try {
+                    effectDisabledByPlayer.add(UUID.fromString(s));
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    private void saveEffectDisabled() {
+        File f = new File(plugin.getDataFolder(), "leader_effect_disabled.yml");
+        YamlConfiguration cfg = new YamlConfiguration();
+        List<String> list = new ArrayList<>();
+        for (UUID u : effectDisabledByPlayer) list.add(u.toString());
+        cfg.set("uuids", list);
+        try {
+            cfg.save(f);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Не удалось сохранить leader_effect_disabled: " + e.getMessage());
+        }
+    }
+
+    public boolean isEffectDisabled(UUID playerId) {
+        return effectDisabledByPlayer.contains(playerId);
+    }
+
+    public void setEffectDisabled(UUID playerId, boolean disabled) {
+        if (disabled) effectDisabledByPlayer.add(playerId);
+        else effectDisabledByPlayer.remove(playerId);
+        saveEffectDisabled();
+    }
+
+    public boolean toggleEffectFor(Player player) {
+        UUID id = player.getUniqueId();
+        boolean now = !effectDisabledByPlayer.contains(id);
+        setEffectDisabled(id, now);
+        return now;
+    }
+
     private void startEffects() {
+        if (!isEnabledInConfig()) return;
         effectTask = new BukkitRunnable() {
             @Override
             public void run() {
                 updateLeaderEffects();
             }
         };
-        effectTask.runTaskTimer(plugin, 20L, 10L); // Проверка каждые 0.5 секунды
+        effectTask.runTaskTimer(plugin, 40L, 40L); // Раз в 2 сек — меньше нагрузки
+    }
+
+    private boolean isEnabledInConfig() {
+        try {
+            return plugin.getConfig().getBoolean("leader-effects.enabled", true);
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     private void updateLeaderEffects() {
-        // Получаем топ-1 игрока
-        var topPlayers = plugin.getPlayerDataManager().getTopPlayers(1);
+        long now = Bukkit.getCurrentTick();
+        if (cachedLeaderId == null || (now - cacheTime) > CACHE_TICKS) {
+            List<PlayerData> top = plugin.getPlayerDataManager().getTopPlayers(1);
+            cachedLeaderId = top.isEmpty() ? null : top.get(0).getPlayerId();
+            cacheTime = now;
+        }
+
         Set<UUID> newLeaders = new HashSet<>();
-
-        if (!topPlayers.isEmpty()) {
-            PlayerData leaderData = topPlayers.get(0);
-            Player leader = Bukkit.getPlayer(leaderData.getPlayerId());
-
+        if (cachedLeaderId != null) {
+            Player leader = Bukkit.getPlayer(cachedLeaderId);
             if (leader != null && leader.isOnline()) {
-                newLeaders.add(leader.getUniqueId());
-                showLeaderFootsteps(leader);
-            }
-        }
-
-        // Убираем эффекты у тех, кто перестал быть лидером
-        for (UUID oldLeaderId : currentLeaders) {
-            if (!newLeaders.contains(oldLeaderId)) {
-                Player oldLeader = Bukkit.getPlayer(oldLeaderId);
-                if (oldLeader != null && oldLeader.isOnline()) {
-                    oldLeader.sendMessage("§7Вы больше не лидер рейтинга");
+                newLeaders.add(cachedLeaderId);
+                if (!isEffectDisabled(cachedLeaderId)) {
+                    showLeaderFootsteps(leader);
                 }
-                lastLocations.remove(oldLeaderId);
             }
         }
 
+        for (UUID oldId : currentLeaders) {
+            if (!newLeaders.contains(oldId)) {
+                Player p = Bukkit.getPlayer(oldId);
+                if (p != null && p.isOnline()) p.sendMessage(Lang.get(plugin, "leader_no_longer"));
+                lastLocations.remove(oldId);
+            }
+        }
         currentLeaders.clear();
         currentLeaders.addAll(newLeaders);
     }
 
     private void showLeaderFootsteps(Player leader) {
-        Location currentLoc = leader.getLocation();
-        Location lastLoc = lastLocations.get(leader.getUniqueId());
+        Location cur = leader.getLocation();
+        Location last = lastLocations.get(leader.getUniqueId());
+        lastLocations.put(leader.getUniqueId(), cur.clone());
 
-        // Сохраняем текущую позицию
-        lastLocations.put(leader.getUniqueId(), currentLoc.clone());
-
-        // Создаем огоньки только если игрок двигался
-        if (lastLoc != null && lastLoc.distanceSquared(currentLoc) > 0.1) {
-            // Огоньки под ногами (2-3 частицы)
-            int flameCount = 2 + (int)(Math.random() * 2); // 2-3 огонька
-
-            for (int i = 0; i < flameCount; i++) {
-                double angle = Math.random() * Math.PI * 2;
-                double radius = 0.15 + Math.random() * 0.1; // Очень маленький радиус
-                double x = currentLoc.getX() + radius * Math.cos(angle);
-                double z = currentLoc.getZ() + radius * Math.sin(angle);
-                double y = currentLoc.getY() + 0.05; // Чуть выше земли
-
-                // Основной огонек
+        if (last != null && last.distanceSquared(cur) > 0.1) {
+            int count = Math.min(2, plugin.getConfig().getInt("leader-effects.footsteps", 3));
+            for (int i = 0; i < count; i++) {
+                double a = Math.random() * Math.PI * 2;
+                double r = 0.2;
+                double x = cur.getX() + r * Math.cos(a);
+                double z = cur.getZ() + r * Math.sin(a);
+                double y = cur.getY() + 0.05;
                 leader.getWorld().spawnParticle(Particle.FLAME,
-                        new Location(currentLoc.getWorld(), x, y, z),
-                        1, 0, 0, 0, 0);
-
-                // Маленькая искорка рядом (реже, используем CAMPFIRE_COSY_SMOKE или обычный дым)
-                if (Math.random() < 0.2) {
-                    double sparkX = x + (Math.random() - 0.5) * 0.05;
-                    double sparkZ = z + (Math.random() - 0.5) * 0.05;
-                    try {
-                        // Пробуем разные варианты дыма для разных версий
-                        leader.getWorld().spawnParticle(Particle.CAMPFIRE_COSY_SMOKE,
-                                new Location(currentLoc.getWorld(), sparkX, y + 0.1, sparkZ),
-                                1, 0, 0, 0, 0.01);
-                    } catch (Exception e) {
-                        // Если нет такого particle, используем обычный
-                        leader.getWorld().spawnParticle(Particle.SMOKE,
-                                new Location(currentLoc.getWorld(), sparkX, y + 0.1, sparkZ),
-                                1, 0, 0, 0, 0.01);
-                    }
-                }
+                        new Location(cur.getWorld(), x, y, z), 1, 0, 0, 0, 0);
             }
         }
 
-        // Периодически показываем ауру на месте (раз в 5 секунд)
-        long currentTime = System.currentTimeMillis();
-        if (currentTime % 5000 < 50) {
-            // Маленькая аура из огня вокруг игрока (на земле)
-            for (double angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
-                double radius = 0.3;
-                double x = currentLoc.getX() + radius * Math.cos(angle);
-                double z = currentLoc.getZ() + radius * Math.sin(angle);
-                double y = currentLoc.getY() + 0.02;
-
+        long t = System.currentTimeMillis();
+        if (t - lastAuraTime >= AURA_INTERVAL_MS) {
+            lastAuraTime = t;
+            for (double a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+                double r = 0.35;
+                double x = cur.getX() + r * Math.cos(a);
+                double z = cur.getZ() + r * Math.sin(a);
+                double y = cur.getY() + 0.02;
                 leader.getWorld().spawnParticle(Particle.FLAME,
-                        new Location(currentLoc.getWorld(), x, y, z),
-                        1, 0, 0, 0, 0);
+                        new Location(cur.getWorld(), x, y, z), 1, 0, 0, 0, 0);
             }
         }
     }
 
-    // Показываем эффект при входе лидера
     public void onPlayerJoin(Player player) {
-        if (currentLeaders.contains(player.getUniqueId())) {
-            player.sendMessage("§6══════════════════════════════");
-            player.sendMessage("§e★ ВЫ ЛИДЕР РЕЙТИНГА! ★");
-            player.sendMessage("§7За вами следуют огненные следы");
-            player.sendMessage("§6══════════════════════════════");
+        if (!currentLeaders.contains(player.getUniqueId())) return;
+        if (isEffectDisabled(player.getUniqueId())) {
+            player.sendMessage(Lang.get(plugin, "leader_effect_off_hint"));
+        } else {
+            player.sendMessage(Lang.get(plugin, "leader_effect_on_hint"));
         }
+    }
+
+    public void invalidateLeaderCache() {
+        cachedLeaderId = null;
     }
 
     public void stopEffects() {
         if (effectTask != null) {
             effectTask.cancel();
+            effectTask = null;
         }
         currentLeaders.clear();
         lastLocations.clear();

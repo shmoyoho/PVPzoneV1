@@ -1,6 +1,7 @@
 package com.galyakyxnya.pvpzone.commands;
 
 import com.galyakyxnya.pvpzone.Main;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -17,35 +18,32 @@ public class PvpZ1Command implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage("§cТолько игрок может использовать эту команду!");
+            sender.sendMessage(Lang.get(plugin, "point_only_player"));
             return true;
         }
 
         Player player = (Player) sender;
 
         if (!player.hasPermission("pvpzone.admin")) {
-            player.sendMessage("§cНет прав!");
+            player.sendMessage(Lang.get(plugin, "point_no_permission"));
             return true;
         }
 
         Location location = player.getLocation();
 
-        // Сохраняем во временный конфиг
         plugin.getConfig().set("temp.pos1.world", location.getWorld().getName());
         plugin.getConfig().set("temp.pos1.x", location.getX());
-        plugin.getConfig().set("temp.pos1.y", location.getY()); // Сохраняем Y для отображения
+        plugin.getConfig().set("temp.pos1.y", location.getY());
         plugin.getConfig().set("temp.pos1.z", location.getZ());
         plugin.saveConfig();
 
-        player.sendMessage("§a══════════════════════════════");
-        player.sendMessage("§aПервая точка установлена!");
-        player.sendMessage("§7Координаты: §eX: " + String.format("%.1f", location.getX()) +
-                " §7| §eY: " + String.format("%.1f", location.getY()) +
-                " §7| §eZ: " + String.format("%.1f", location.getZ()));
-        player.sendMessage("§7Мир: §e" + location.getWorld().getName());
-        player.sendMessage("§a══════════════════════════════");
-        player.sendMessage("§7Теперь установите вторую точку §e/pvpz2");
-        player.sendMessage("§7Затем создайте зону: §e/pvpzone create <название>");
+        player.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        player.sendMessage(Lang.get(plugin, "point_first_ok"));
+        player.sendMessage(Lang.get(plugin, "point_coords", "%x%", String.format("%.1f", location.getX()), "%y%", String.format("%.1f", location.getY()), "%z%", String.format("%.1f", location.getZ())));
+        player.sendMessage(Lang.get(plugin, "point_world", "%world%", location.getWorld().getName()));
+        player.sendMessage(Lang.get(plugin, "zone_enter_title"));
+        player.sendMessage(Lang.get(plugin, "point_next_pvpz2"));
+        player.sendMessage(Lang.get(plugin, "point_next_create"));
 
         return true;
     }

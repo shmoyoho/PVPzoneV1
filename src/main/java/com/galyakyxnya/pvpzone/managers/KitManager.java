@@ -1,6 +1,7 @@
 package com.galyakyxnya.pvpzone.managers;
 
 import com.galyakyxnya.pvpzone.Main;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -48,7 +49,7 @@ public class KitManager {
         kits.put(kitName.toLowerCase(), new KitData(items, armor));
         saveKitToFile(kitName, items, armor);
 
-        player.sendMessage("§a✓ Набор '" + kitName + "' сохранен!");
+        player.sendMessage(Lang.get(plugin, "kit_saved", "%kit%", kitName));
         plugin.getLogger().info("Набор '" + kitName + "' сохранен из инвентаря " + player.getName());
         return true;
     }
@@ -89,9 +90,9 @@ public class KitManager {
         boolean applied = applyKit(kitName, player);
 
         if (applied) {
-            player.sendMessage("§7Набор: §e" + kitName);
+            player.sendMessage(Lang.get(plugin, "kit_applied", "%kit%", kitName));
         } else {
-            player.sendMessage("§c✗ Набор '" + kitName + "' не найден!");
+            player.sendMessage(Lang.get(plugin, "kit_not_found", "%kit%", kitName));
         }
 
         return applied;

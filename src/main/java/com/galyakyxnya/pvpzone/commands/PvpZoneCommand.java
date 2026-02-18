@@ -2,8 +2,8 @@ package com.galyakyxnya.pvpzone.commands;
 
 import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.managers.ZoneManager;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.command.Command;
@@ -34,7 +34,7 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
         switch (subCommand) {
             case "create":
                 if (!sender.hasPermission("pvpzone.admin")) {
-                    sender.sendMessage(ChatColor.RED + "У вас нет прав для использования этой команды!");
+                    sender.sendMessage(Lang.get(plugin, "no_permission"));
                     return true;
                 }
                 createZone(sender, args);
@@ -46,7 +46,7 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
 
             case "delete":
                 if (!sender.hasPermission("pvpzone.admin")) {
-                    sender.sendMessage(ChatColor.RED + "У вас нет прав для использования этой команды!");
+                    sender.sendMessage(Lang.get(plugin, "no_permission"));
                     return true;
                 }
                 deleteZone(sender, args);
@@ -58,7 +58,7 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
 
             case "bonuses":
                 if (!sender.hasPermission("pvpzone.admin")) {
-                    sender.sendMessage(ChatColor.RED + "У вас нет прав для использования этой команды!");
+                    sender.sendMessage(Lang.get(plugin, "no_permission"));
                     return true;
                 }
                 toggleBonuses(sender, args);
@@ -66,7 +66,7 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
 
             case "kit":
                 if (!sender.hasPermission("pvpzone.admin")) {
-                    sender.sendMessage(ChatColor.RED + "У вас нет прав для использования этой команды!");
+                    sender.sendMessage(Lang.get(plugin, "no_permission"));
                     return true;
                 }
                 handleZoneKit(sender, args);
@@ -74,11 +74,11 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
 
             case "reload":
                 if (!sender.hasPermission("pvpzone.admin")) {
-                    sender.sendMessage(ChatColor.RED + "У вас нет прав для использования этой команды!");
+                    sender.sendMessage(Lang.get(plugin, "no_permission"));
                     return true;
                 }
                 plugin.reload();
-                sender.sendMessage(ChatColor.GREEN + "Плагин перезагружен!");
+                sender.sendMessage(Lang.get(plugin, "pvpzone_reload_ok"));
                 break;
 
             case "status":
@@ -96,82 +96,71 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
 
     private void createZone(CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + "Эту команду может использовать только игрок!");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_create_player_only"));
             return;
         }
 
         if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Использование: /pvpzone create <название>");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_create_usage"));
             return;
         }
 
         Player player = (Player) sender;
         String zoneName = args[1];
 
-        // Проверяем временные точки
         var config = plugin.getConfig();
 
         if (!config.contains("temp.pos1") || !config.contains("temp.pos2")) {
-            player.sendMessage(ChatColor.RED + "Сначала установите обе точки зоны!");
-            player.sendMessage(ChatColor.YELLOW + "Используйте: /pvpz1 и /pvpz2");
+            player.sendMessage(Lang.get(plugin, "pvpzone_set_points_first"));
+            player.sendMessage(Lang.get(plugin, "pvpzone_use_pvpz"));
             return;
         }
 
-        // Загружаем точки из временного конфига
         Location pos1 = loadLocationFromConfig("temp.pos1");
         Location pos2 = loadLocationFromConfig("temp.pos2");
 
         if (pos1 == null || pos2 == null) {
-            player.sendMessage(ChatColor.RED + "Ошибка загрузки точек зоны!");
+            player.sendMessage(Lang.get(plugin, "pvpzone_load_error"));
             return;
         }
 
-        // Проверяем, что точки в одном мире
         if (!pos1.getWorld().equals(pos2.getWorld())) {
-            player.sendMessage(ChatColor.RED + "Точки должны быть в одном мире!");
+            player.sendMessage(Lang.get(plugin, "pvpzone_same_world"));
             return;
         }
 
-        // Создаем зону с включенными бонусами по умолчанию
         boolean success = plugin.getZoneManager().createZone(zoneName, pos1, pos2, true);
 
         if (success) {
-            player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
-            player.sendMessage(ChatColor.GREEN + "PvP зона '" + zoneName + "' успешно создана!");
+            player.sendMessage(Lang.get(plugin, "zone_enter_title"));
+            player.sendMessage(Lang.get(plugin, "pvpzone_created_success", "%name%", zoneName));
 
-            // Показываем информацию о зоне
             ZoneManager.PvpZone zone = plugin.getZoneManager().getZone(zoneName);
             if (zone != null) {
                 Location zonePos1 = zone.getPos1();
                 Location zonePos2 = zone.getPos2();
 
-                double minX = Math.min(zonePos1.getX(), zonePos2.getX());
-                double maxX = Math.max(zonePos1.getX(), zonePos2.getX());
-                double minZ = Math.min(zonePos1.getZ(), zonePos2.getZ());
-                double maxZ = Math.max(zonePos1.getZ(), zonePos2.getZ());
+                double width = Math.max(zonePos1.getX(), zonePos2.getX()) - Math.min(zonePos1.getX(), zonePos2.getX());
+                double length = Math.max(zonePos1.getZ(), zonePos2.getZ()) - Math.min(zonePos1.getZ(), zonePos2.getZ());
 
-                double width = maxX - minX;
-                double length = maxZ - minZ;
-
-                player.sendMessage(ChatColor.GRAY + "Размеры зоны:");
-                player.sendMessage(ChatColor.YELLOW + "  Ширина (X): " + String.format("%.1f", width) + " блоков");
-                player.sendMessage(ChatColor.YELLOW + "  Длина (Z): " + String.format("%.1f", length) + " блоков");
-                player.sendMessage(ChatColor.YELLOW + "  Высота: от 0 до " + zonePos1.getWorld().getMaxHeight());
-                player.sendMessage(ChatColor.YELLOW + "  Мир: " + zonePos1.getWorld().getName());
-                player.sendMessage(ChatColor.YELLOW + "  Бонусы: " +
-                        (zone.isBonusesEnabled() ? ChatColor.GREEN + "ВКЛ" : ChatColor.RED + "ВЫКЛ"));
-                player.sendMessage(ChatColor.YELLOW + "  Набор по умолчанию: " + ChatColor.WHITE + zone.getKitName());
+                player.sendMessage(Lang.get(plugin, "pvpzone_zone_sizes"));
+                player.sendMessage(Lang.get(plugin, "pvpzone_width", "%value%", String.format("%.1f", width)));
+                player.sendMessage(Lang.get(plugin, "pvpzone_length", "%value%", String.format("%.1f", length)));
+                player.sendMessage(Lang.get(plugin, "pvpzone_height", "%value%", String.valueOf(zonePos1.getWorld().getMaxHeight())));
+                player.sendMessage(Lang.get(plugin, "pvpzone_world", "%value%", zonePos1.getWorld().getName()));
+                String bonusVal = zone.isBonusesEnabled() ? Lang.get(plugin, "pvpzone_bonuses_on") : Lang.get(plugin, "pvpzone_bonuses_off");
+                player.sendMessage(Lang.get(plugin, "pvpzone_bonuses_label", "%value%", bonusVal));
+                player.sendMessage(Lang.get(plugin, "pvpzone_kit_label", "%value%", zone.getKitName()));
             }
 
-            player.sendMessage(ChatColor.GOLD + "══════════════════════════════");
+            player.sendMessage(Lang.get(plugin, "zone_enter_title"));
 
-            // Очищаем временные точки
             config.set("temp.pos1", null);
             config.set("temp.pos2", null);
             plugin.saveConfig();
 
         } else {
-            player.sendMessage(ChatColor.RED + "Зона с таким названием уже существует!");
+            player.sendMessage(Lang.get(plugin, "pvpzone_exists"));
         }
     }
 
@@ -180,43 +169,25 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
         var zones = zoneManager.getAllZones();
 
         if (zones.isEmpty()) {
-            sender.sendMessage(ChatColor.GRAY + "Нет созданных PvP зон");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_no_zones"));
             return;
         }
 
-        sender.sendMessage(ChatColor.GOLD + "══ Список PvP зон ══");
+        sender.sendMessage(Lang.get(plugin, "pvpzone_list_header"));
 
         for (ZoneManager.PvpZone zone : zones) {
             Location pos1 = zone.getPos1();
             Location pos2 = zone.getPos2();
-
-            double minX = Math.min(pos1.getX(), pos2.getX());
-            double maxX = Math.max(pos1.getX(), pos2.getX());
-            double minZ = Math.min(pos1.getZ(), pos2.getZ());
-            double maxZ = Math.max(pos1.getZ(), pos2.getZ());
-
-            double width = maxX - minX;
-            double length = maxZ - minZ;
-
-            String status = zone.isBonusesEnabled() ?
-                    ChatColor.GREEN + "Бонусы: ВКЛ" :
-                    ChatColor.RED + "Бонусы: ВЫКЛ";
-
-            sender.sendMessage(ChatColor.YELLOW + "• " + zone.getName());
-            sender.sendMessage(ChatColor.GRAY + "  Размер: " +
-                    ChatColor.WHITE + String.format("%.0f", width) + "×" +
-                    String.format("%.0f", length) + ChatColor.GRAY + " блоков");
-            sender.sendMessage(ChatColor.GRAY + "  Набор: " + ChatColor.WHITE + zone.getKitName());
-            sender.sendMessage(ChatColor.GRAY + "  " + status);
-            sender.sendMessage("");
+            double width = Math.max(pos1.getX(), pos2.getX()) - Math.min(pos1.getX(), pos2.getX());
+            double length = Math.max(pos1.getZ(), pos2.getZ()) - Math.min(pos1.getZ(), pos2.getZ());
+            String size = String.format("%.0f", width) + "×" + String.format("%.0f", length);
+            sender.sendMessage(Lang.get(plugin, "pvpzone_list_entry", "%name%", zone.getName(), "%size%", size));
         }
-
-        sender.sendMessage(ChatColor.GRAY + "Всего зон: " + ChatColor.YELLOW + zones.size());
     }
 
     private void deleteZone(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Использование: /pvpzone delete <название>");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_delete_usage"));
             return;
         }
 
@@ -224,15 +195,15 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
         boolean success = plugin.getZoneManager().removeZone(zoneName);
 
         if (success) {
-            sender.sendMessage(ChatColor.GREEN + "Зона '" + zoneName + "' удалена!");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_deleted"));
         } else {
-            sender.sendMessage(ChatColor.RED + "Зона '" + zoneName + "' не найдена!");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_not_found", "%name%", zoneName));
         }
     }
 
     private void zoneInfo(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Использование: /pvpzone info <название>");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_info_usage"));
             return;
         }
 
@@ -240,7 +211,7 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
         ZoneManager.PvpZone zone = plugin.getZoneManager().getZone(zoneName);
 
         if (zone == null) {
-            sender.sendMessage(ChatColor.RED + "Зона '" + zoneName + "' не найдена!");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_not_found", "%name%", zoneName));
             return;
         }
 
@@ -256,35 +227,35 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
         double length = maxZ - minZ;
         double area = width * length;
 
-        sender.sendMessage(ChatColor.GOLD + "══ Информация о зоне '" + zoneName + "' ══");
-        sender.sendMessage(ChatColor.GRAY + "Координаты:");
-        sender.sendMessage(ChatColor.YELLOW + "  X: " + String.format("%.1f", minX) + " → " + String.format("%.1f", maxX));
-        sender.sendMessage(ChatColor.YELLOW + "  Z: " + String.format("%.1f", minZ) + " → " + String.format("%.1f", maxZ));
-        sender.sendMessage(ChatColor.YELLOW + "  Y: 0 → " + pos1.getWorld().getMaxHeight());
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_header", "%name%", zoneName));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_coords"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_x", "%min%", String.format("%.1f", minX), "%max%", String.format("%.1f", maxX)));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_z", "%min%", String.format("%.1f", minZ), "%max%", String.format("%.1f", maxZ)));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_y", "%max%", String.valueOf(pos1.getWorld().getMaxHeight())));
 
-        sender.sendMessage(ChatColor.GRAY + "Размеры:");
-        sender.sendMessage(ChatColor.YELLOW + "  Ширина: " + String.format("%.1f", width) + " блоков");
-        sender.sendMessage(ChatColor.YELLOW + "  Длина: " + String.format("%.1f", length) + " блоков");
-        sender.sendMessage(ChatColor.YELLOW + "  Площадь: " + String.format("%.0f", area) + " блоков²");
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_sizes"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_width", "%value%", String.format("%.1f", width)));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_length", "%value%", String.format("%.1f", length)));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_area", "%value%", String.format("%.0f", area)));
 
-        sender.sendMessage(ChatColor.GRAY + "Настройки:");
-        sender.sendMessage(ChatColor.YELLOW + "  Набор: " + ChatColor.WHITE + zone.getKitName());
-        sender.sendMessage(ChatColor.YELLOW + "  Бонусы: " +
-                (zone.isBonusesEnabled() ? ChatColor.GREEN + "ВКЛ" : ChatColor.RED + "ВЫКЛ"));
-        sender.sendMessage(ChatColor.YELLOW + "  Мир: " + pos1.getWorld().getName());
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_settings"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_kit", "%value%", zone.getKitName()));
+        String bonusVal = zone.isBonusesEnabled() ? Lang.get(plugin, "pvpzone_bonuses_on") : Lang.get(plugin, "pvpzone_bonuses_off");
+        sender.sendMessage(Lang.get(plugin, "pvpzone_bonuses_label", "%value%", bonusVal));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_info_world", "%value%", pos1.getWorld().getName()));
 
         if (zone.getCenter() != null) {
             Location center = zone.getCenter();
-            sender.sendMessage(ChatColor.GRAY + "Центр зоны:");
-            sender.sendMessage(ChatColor.YELLOW + "  X: " + String.format("%.1f", center.getX()));
-            sender.sendMessage(ChatColor.YELLOW + "  Y: " + String.format("%.1f", center.getY()));
-            sender.sendMessage(ChatColor.YELLOW + "  Z: " + String.format("%.1f", center.getZ()));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_info_center"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_info_center_x", "%value%", String.format("%.1f", center.getX())));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_info_center_y", "%value%", String.format("%.1f", center.getY())));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_info_center_z", "%value%", String.format("%.1f", center.getZ())));
         }
     }
 
     private void toggleBonuses(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Использование: /pvpzone bonuses <название> <on|off>");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_bonuses_usage"));
             return;
         }
 
@@ -293,18 +264,18 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
 
         ZoneManager.PvpZone zone = plugin.getZoneManager().getZone(zoneName);
         if (zone == null) {
-            sender.sendMessage(ChatColor.RED + "Зона '" + zoneName + "' не найдена!");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_not_found", "%name%", zoneName));
             return;
         }
 
         if (action.equals("on")) {
             zone.setBonusesEnabled(true);
-            sender.sendMessage(ChatColor.GREEN + "Бонусы в зоне '" + zoneName + "' включены!");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_bonuses_on_ok", "%name%", zoneName));
         } else if (action.equals("off")) {
             zone.setBonusesEnabled(false);
-            sender.sendMessage(ChatColor.YELLOW + "Бонусы в зоне '" + zoneName + "' отключены!");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_bonuses_off_ok", "%name%", zoneName));
         } else {
-            sender.sendMessage(ChatColor.RED + "Использование: /pvpzone bonuses <название> <on|off>");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_bonuses_usage"));
             return;
         }
 
@@ -313,7 +284,7 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
 
     private void handleZoneKit(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Использование: /pvpzone kit <set|save|info> <зона> [название_набора]");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_kit_usage"));
             return;
         }
 
@@ -333,59 +304,39 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
     private void showStatus(CommandSender sender) {
         var zoneManager = plugin.getZoneManager();
 
-        sender.sendMessage(ChatColor.GOLD + "══ Статус PvP Zone ══");
-        sender.sendMessage(ChatColor.GRAY + "Зон создано: " + ChatColor.YELLOW +
-                zoneManager.getAllZones().size());
-        sender.sendMessage(ChatColor.GRAY + "Игроков в зонах: " + ChatColor.YELLOW +
-                zoneManager.getPlayersInZoneCount());
-        sender.sendMessage(ChatColor.GRAY + "Основной PvP набор: " +
-                (plugin.getKitManager().isKitSet() ?
-                        ChatColor.GREEN + "Установлен" :
-                        ChatColor.RED + "Не установлен"));
-        sender.sendMessage(ChatColor.GRAY + "Магазин: " +
-                ChatColor.YELLOW + "Работает");
-        sender.sendMessage(ChatColor.GRAY + "Игроков в базе: " + ChatColor.YELLOW +
-                plugin.getPlayerDataManager().getLoadedPlayersCount());
+        sender.sendMessage(Lang.get(plugin, "pvpzone_status_header"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_status_zones", "%value%", String.valueOf(zoneManager.getAllZones().size())));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_status_players", "%value%", String.valueOf(zoneManager.getPlayersInZoneCount())));
+        sender.sendMessage(Lang.get(plugin, plugin.getKitManager().isKitSet() ? "pvpzone_status_kit_set" : "pvpzone_status_kit_not"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_status_shop"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_status_db", "%value%", String.valueOf(plugin.getPlayerDataManager().getLoadedPlayersCount())));
     }
 
     private void showHelp(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "══ PvP Zone - Помощь ══");
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_header"));
 
         if (sender.hasPermission("pvpzone.admin")) {
-            sender.sendMessage(ChatColor.YELLOW + "Админ команды:");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpz1 " + ChatColor.WHITE + "- Установить первую точку");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpz2 " + ChatColor.WHITE + "- Установить вторую точку");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpkit " + ChatColor.WHITE + "- Установить основной PvP набор");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone create <название> " +
-                    ChatColor.WHITE + "- Создать зону");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone delete <название> " +
-                    ChatColor.WHITE + "- Удалить зону");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone bonuses <название> <on|off> " +
-                    ChatColor.WHITE + "- Вкл/выкл бонусы");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone kit set <зона> <название> " +
-                    ChatColor.WHITE + "- Установить набор для зоны");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone kit save <зона> " +
-                    ChatColor.WHITE + "- Сохранить набор для зоны");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone kit info <зона> " +
-                    ChatColor.WHITE + "- Информация о наборе зоны");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone reload " +
-                    ChatColor.WHITE + "- Перезагрузить плагин");
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_admin"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_pvpz1"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_pvpz2"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_pvpkit"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_create"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_delete"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_bonuses"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_kit_set"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_kit_save"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_kit_info"));
+            sender.sendMessage(Lang.get(plugin, "pvpzone_help_reload"));
             sender.sendMessage("");
         }
 
-        sender.sendMessage(ChatColor.YELLOW + "Основные команды:");
-        sender.sendMessage(ChatColor.GRAY + "  /pvptop [страница] " +
-                ChatColor.WHITE + "- Топ игроков");
-        sender.sendMessage(ChatColor.GRAY + "  /pvpshop " +
-                ChatColor.WHITE + "- Магазин бонусов");
-        sender.sendMessage(ChatColor.GRAY + "  /pvpzone list " +
-                ChatColor.WHITE + "- Список зон");
-        sender.sendMessage(ChatColor.GRAY + "  /pvpzone info <название> " +
-                ChatColor.WHITE + "- Информация о зоне");
-        sender.sendMessage(ChatColor.GRAY + "  /pvpzone status " +
-                ChatColor.WHITE + "- Статус плагина");
-        sender.sendMessage(ChatColor.GRAY + "  /pvpzone help " +
-                ChatColor.WHITE + "- Эта справка");
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_main"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_pvptop"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_pvpshop"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_list"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_info"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_status"));
+        sender.sendMessage(Lang.get(plugin, "pvpzone_help_help"));
     }
 
     private Location loadLocationFromConfig(String path) {

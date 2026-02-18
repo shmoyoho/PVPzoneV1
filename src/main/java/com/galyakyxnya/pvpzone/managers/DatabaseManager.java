@@ -103,16 +103,24 @@ public class DatabaseManager {
                     "PRIMARY KEY (player_uuid, bonus_id)" +
                     ")";
 
-            // Упрощенная таблица инвентарей (без внешних ключей для скорости)
+            // Упрощенная таблица инвентарей (restore_inventory_on_join = 1 только если вышел в PvP-зоне)
             String inventoryTable = "CREATE TABLE IF NOT EXISTS player_inventory (" +
                     "player_uuid TEXT PRIMARY KEY, " +
                     "inventory_data TEXT, " +
-                    "armor_data TEXT" +
+                    "armor_data TEXT, " +
+                    "restore_inventory_on_join INTEGER DEFAULT 0" +
                     ")";
 
             stmt.execute(playersTable);
             stmt.execute(bonusesTable);
             stmt.execute(inventoryTable);
+
+            // Миграция: добавить колонку restore_inventory_on_join (только если её ещё нет)
+            try {
+                stmt.execute("ALTER TABLE player_inventory ADD COLUMN restore_inventory_on_join INTEGER DEFAULT 0");
+            } catch (SQLException ignored) {
+                // Колонка уже есть
+            }
 
             // Создаем индексы
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_player_name ON players(name)");
@@ -203,17 +211,18 @@ public class DatabaseManager {
         return stmt.executeQuery();
     }
 
-    // Асинхронные методы для инвентарей
-    public void savePlayerInventoryAsync(String playerUuid, String inventoryData, String armorData) {
+    // Асинхронные методы для инвентарей (restoreOnJoin = восстанавливать при следующем входе, только если вышел в PvP-зоне)
+    public void savePlayerInventoryAsync(String playerUuid, String inventoryData, String armorData, boolean restoreOnJoin) {
         if (inventoryData == null || armorData == null) return;
 
         queryQueue.offer(() -> {
             try {
-                String sql = "INSERT OR REPLACE INTO player_inventory (player_uuid, inventory_data, armor_data) VALUES (?, ?, ?)";
+                String sql = "INSERT OR REPLACE INTO player_inventory (player_uuid, inventory_data, armor_data, restore_inventory_on_join) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement stmt = connection.prepareStatement(sql)) {
                     stmt.setString(1, playerUuid);
                     stmt.setString(2, inventoryData);
                     stmt.setString(3, armorData);
+                    stmt.setInt(4, restoreOnJoin ? 1 : 0);
                     stmt.executeUpdate();
                 }
             } catch (SQLException e) {
@@ -223,10 +232,55 @@ public class DatabaseManager {
     }
 
     public ResultSet getPlayerInventorySync(String playerUuid) throws SQLException {
-        String sql = "SELECT inventory_data, armor_data FROM player_inventory WHERE player_uuid = ?";
+        String sql = "SELECT inventory_data, armor_data, restore_inventory_on_join FROM player_inventory WHERE player_uuid = ?";
         PreparedStatement stmt = connection.prepareStatement(sql);
         stmt.setString(1, playerUuid);
         return stmt.executeQuery();
+    }
+
+    /** Включить флаг «восстановить инвентарь при следующем входе» (игрок вышел, находясь в PvP-зоне). */
+    public void setRestoreInventoryOnJoinTrue(String playerUuid) {
+        queryQueue.offer(() -> {
+            try {
+                String sql = "UPDATE player_inventory SET restore_inventory_on_join = 1 WHERE player_uuid = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                    stmt.setString(1, playerUuid);
+                    stmt.executeUpdate();
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Ошибка установки флага restore: " + playerUuid, e);
+            }
+        });
+    }
+
+    /** Очистить сохранённый инвентарь и флаг (игрок вышел не в PvP-зоне — инвентарем управляет сервер). */
+    public void clearPlayerInventoryAndRestoreFlag(String playerUuid) {
+        queryQueue.offer(() -> {
+            try {
+                String sql = "UPDATE player_inventory SET inventory_data = '', armor_data = '', restore_inventory_on_join = 0 WHERE player_uuid = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                    stmt.setString(1, playerUuid);
+                    stmt.executeUpdate();
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Ошибка очистки инвентаря: " + playerUuid, e);
+            }
+        });
+    }
+
+    /** Сбросить флаг после восстановления инвентаря при входе. */
+    public void clearRestoreInventoryOnJoinFlag(String playerUuid) {
+        queryQueue.offer(() -> {
+            try {
+                String sql = "UPDATE player_inventory SET restore_inventory_on_join = 0 WHERE player_uuid = ?";
+                try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+                    stmt.setString(1, playerUuid);
+                    stmt.executeUpdate();
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().log(Level.WARNING, "Ошибка сброса флага restore: " + playerUuid, e);
+            }
+        });
     }
 
     public void closeConnection() {

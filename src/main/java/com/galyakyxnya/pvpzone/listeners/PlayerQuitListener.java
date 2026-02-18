@@ -17,14 +17,16 @@ public class PlayerQuitListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
 
-        // Если игрок был в зоне - восстанавливаем инвентарь и сохраняем его в БД для следующего входа
+        // Если игрок вышел, находясь в PvP-зоне: восстанавливаем мирской инвентарь и ставим флаг «восстановить при входе»
+        // (мирской инвентарь уже сохранён в БД при входе в зону)
         if (plugin.getZoneManager().isPlayerInZone(player)) {
             plugin.getPlayerDataManager().restoreOriginalInventory(player);
             plugin.getZoneManager().removePlayerFromZone(player);
+            plugin.getPlayerDataManager().setRestoreInventoryOnJoinTrue(player.getUniqueId());
+        } else {
+            // Вышел не в зоне — инвентарем управляет сервер: очищаем сохранённый инвентарь и флаг
+            plugin.getPlayerDataManager().clearPlayerInventoryAndRestoreFlag(player.getUniqueId());
         }
-
-        // Всегда сохраняем текущий инвентарь в БД (на случай выхода из зоны или перезахода)
-        plugin.getPlayerDataManager().saveInventoryToDatabase(player);
 
         // Удаляем из трекера зон
         PlayerMoveListener moveListener = plugin.getPlayerMoveListener();
@@ -36,5 +38,9 @@ public class PlayerQuitListener implements Listener {
         plugin.getPlayerDataManager().savePlayerData(
                 plugin.getPlayerDataManager().getPlayerData(player)
         );
+
+        // Сбрасываем кэш, чтобы при следующем входе инвентарь загрузился из БД (то, что только что сохранили),
+        // а не подменялся старым «оригинальным» инвентарём из кэша (например, с момента входа в зону).
+        plugin.getPlayerDataManager().removeCachedData(player.getUniqueId());
     }
 }

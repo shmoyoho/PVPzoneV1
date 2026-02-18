@@ -1,5 +1,6 @@
 package com.galyakyxnya.pvpzone.utils;
 
+import com.galyakyxnya.pvpzone.Main;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -9,49 +10,31 @@ import org.bukkit.entity.Player;
 
 public class ChatUtils {
 
-    public static void sendClickableDuelInvite(Player target, Player challenger, String zoneName) {
-        // Если зона null, заменяем на текст
-        String zoneDisplay = (zoneName != null) ? zoneName : "случайная зона";
+    public static void sendClickableDuelInvite(Main plugin, Player target, Player challenger, String zoneName) {
+        String zoneDisplay = (zoneName != null) ? zoneName : Lang.get(plugin, "duel_random_zone");
 
-        TextComponent mainMessage = new TextComponent(ChatColor.GOLD + "══════════════════════════════\n");
+        TextComponent mainMessage = new TextComponent(Lang.get(plugin, "zone_enter_title") + "\n");
+        TextComponent inviteLine = new TextComponent(Lang.get(plugin, "duel_invite_line") + "\n");
+        TextComponent fromLine = new TextComponent(Lang.get(plugin, "duel_invite_from") + ChatColor.GREEN + challenger.getName() + "\n");
+        TextComponent zoneLine = new TextComponent(Lang.get(plugin, "duel_invite_zone") + ChatColor.YELLOW + zoneDisplay + "\n\n");
 
-        // Основное сообщение
-        TextComponent inviteLine = new TextComponent(ChatColor.YELLOW + "⚔ Вам вызов на дуэль!\n");
-        TextComponent fromLine = new TextComponent(ChatColor.GRAY + "От: " + ChatColor.GREEN + challenger.getName() + "\n");
-        TextComponent zoneLine = new TextComponent(ChatColor.GRAY + "Зона: " + ChatColor.YELLOW + zoneDisplay + "\n\n");
-
-        // Кнопка Принять
-        TextComponent acceptButton = new TextComponent(ChatColor.GREEN + "[✓ ПРИНЯТЬ]");
+        TextComponent acceptButton = new TextComponent(Lang.get(plugin, "duel_accept_btn"));
         acceptButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/pvpaccept"));
-        acceptButton.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                new Text(ChatColor.GREEN + "Нажмите чтобы принять вызов")));
+        acceptButton.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(Lang.get(plugin, "duel_accept_hover"))));
 
         TextComponent space = new TextComponent("  ");
 
-        // Кнопка Отклонить
-        TextComponent denyButton = new TextComponent(ChatColor.RED + "[✗ ОТКЛОНИТЬ]");
+        TextComponent denyButton = new TextComponent(Lang.get(plugin, "duel_deny_btn"));
         denyButton.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/pvpdeny"));
-        denyButton.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                new Text(ChatColor.RED + "Нажмите чтобы отклонить вызов")));
+        denyButton.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new Text(Lang.get(plugin, "duel_deny_hover"))));
 
-        TextComponent separator = new TextComponent(ChatColor.GOLD + "\n══════════════════════════════");
+        TextComponent separator = new TextComponent("\n" + Lang.get(plugin, "zone_enter_title"));
 
-        // Отправляем все компоненты
-        target.spigot().sendMessage(
-                mainMessage,
-                inviteLine,
-                fromLine,
-                zoneLine,
-                acceptButton,
-                space,
-                denyButton,
-                separator
-        );
+        target.spigot().sendMessage(mainMessage, inviteLine, fromLine, zoneLine, acceptButton, space, denyButton, separator);
 
-        // Также отправляем текстовую версию для старых клиентов
-        target.sendMessage(ChatColor.GRAY + "Или используйте команды:");
-        target.sendMessage(ChatColor.GREEN + "/pvpaccept" + ChatColor.GRAY + " - Принять вызов");
-        target.sendMessage(ChatColor.RED + "/pvpdeny" + ChatColor.GRAY + " - Отклонить вызов");
+        target.sendMessage(Lang.get(plugin, "duel_or_use"));
+        target.sendMessage(Lang.get(plugin, "duel_accept_cmd"));
+        target.sendMessage(Lang.get(plugin, "duel_deny_cmd"));
     }
 
     public static void sendClickableMessage(Player player, String message, String hoverText, String command) {

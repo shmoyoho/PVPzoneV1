@@ -4,6 +4,7 @@ import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.listeners.PlayerMoveListener;
 import com.galyakyxnya.pvpzone.models.DuelData;
 import com.galyakyxnya.pvpzone.utils.ChatUtils;
+import com.galyakyxnya.pvpzone.utils.Lang;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -177,7 +178,7 @@ public class DuelManager {
         challenger.sendMessage(ChatColor.GOLD + "══════════════════════════════");
 
         // Интерактивное сообщение принимающему
-        ChatUtils.sendClickableDuelInvite(target, challenger, zoneDisplay);
+        ChatUtils.sendClickableDuelInvite(plugin, target, challenger, zoneDisplay);
 
         // Оповещение сервера
         TextComponent broadcast = new TextComponent(ChatColor.GRAY + "[PvP] " +
@@ -256,15 +257,14 @@ public class DuelManager {
         if (zoneName != null) {
             zone = plugin.getZoneManager().getZone(zoneName);
             if (zone == null) {
-                sendMessageToPlayers(duel, "§cОшибка: зона не найдена!");
+                sendMessageToPlayers(duel, Lang.get(plugin, "duel_zone_not_found"));
                 finishDuel(duel, DuelData.DuelState.CANCELLED);
                 return;
             }
         } else {
-            // Если зона не указана, берем случайную
             List<ZoneManager.PvpZone> zones = plugin.getZoneManager().getAllZones();
             if (zones.isEmpty()) {
-                sendMessageToPlayers(duel, "§cОшибка: нет доступных зон!");
+                sendMessageToPlayers(duel, Lang.get(plugin, "duel_no_zones"));
                 finishDuel(duel, DuelData.DuelState.CANCELLED);
                 return;
             }
@@ -311,9 +311,8 @@ public class DuelManager {
         freezePlayer(player1, 60); // 3 секунды = 60 тиков
         freezePlayer(player2, 60);
 
-        // Отправляем сообщение о начале отсчета
-        sendMessageToPlayers(duel, "§6══════════════════════════════");
-        sendMessageToPlayers(duel, "§a⚔ ДУЭЛЬ НАЧНЕТСЯ ЧЕРЕЗ:");
+        sendMessageToPlayers(duel, Lang.get(plugin, "zone_enter_title"));
+        sendMessageToPlayers(duel, Lang.get(plugin, "duel_countdown"));
 
         // Отсчет 3... 2... 1... СТАРТ!
         new BukkitRunnable() {
@@ -327,9 +326,8 @@ public class DuelManager {
                 }
 
                 if (countdown > 0) {
-                    // Показываем отсчет
-                    String number = getCountdownNumber(countdown);
-                    sendMessageToPlayers(duel, "§e" + number);
+                    String number = getCountdownNumber(plugin, countdown);
+                    sendMessageToPlayers(duel, number);
 
                     // Звук отсчета
                     for (Player player : new Player[]{player1, player2}) {
@@ -341,8 +339,7 @@ public class DuelManager {
 
                     countdown--;
                 } else {
-                    // СТАРТ!
-                    sendMessageToPlayers(duel, "§a⚔ СТАРТ!");
+                    sendMessageToPlayers(duel, Lang.get(plugin, "duel_start"));
 
                     // Размораживаем игроков
                     unfreezePlayer(player1);
@@ -353,7 +350,7 @@ public class DuelManager {
                         if (player.isOnline()) {
                             player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.0f);
                             player.spawnParticle(Particle.FLAME, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
-                            player.sendTitle("§a⚔ ДУЭЛЬ!", "§7Удачи!", 10, 40, 10);
+                            player.sendTitle(Lang.get(plugin, "duel_title"), Lang.get(plugin, "duel_title_sub"), 10, 40, 10);
                         }
                     }
 
@@ -378,9 +375,7 @@ public class DuelManager {
 
                     plugin.getLogger().info("Applied duel kit '" + duelKitName + "' to both players");
 
-                    // Оповещение всего сервера
-                    Bukkit.broadcastMessage("§7[PvP] §aДуэль между §e" + player1.getName() +
-                            "§a и §e" + player2.getName() + "§a началась!");
+                    Bukkit.broadcastMessage(Lang.get(plugin, "duel_started_broadcast", "%p1%", player1.getName(), "%p2%", player2.getName()));
 
                     // Таймер дуэли (5 минут)
                     startDuelTimer(duel);
@@ -391,11 +386,11 @@ public class DuelManager {
         }.runTaskTimer(plugin, 20L, 20L); // Каждую секунду
     }
 
-    private String getCountdownNumber(int number) {
+    private String getCountdownNumber(Main plugin, int number) {
         switch (number) {
-            case 3: return "§c▆ ▆ ▆";
-            case 2: return "§6▆ ▆";
-            case 1: return "§e▆";
+            case 3: return Lang.get(plugin, "duel_count_3");
+            case 2: return Lang.get(plugin, "duel_count_2");
+            case 1: return Lang.get(plugin, "duel_count_1");
             default: return String.valueOf(number);
         }
     }
@@ -449,8 +444,7 @@ public class DuelManager {
         player.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
         player.spawnParticle(Particle.PORTAL, player.getLocation(), 50);
 
-        // Сообщение игроку
-        player.sendMessage("§7Вы телепортированы на дуэль. Подготовьтесь!");
+        player.sendMessage(Lang.get(plugin, "duel_teleported"));
     }
 
     // ТАЙМЕР ОТКАЗА (60 секунд)
@@ -462,12 +456,12 @@ public class DuelManager {
                     // Время вышло, автоматически отклоняем
                     Player target = duel.getTarget();
                     if (target.isOnline()) {
-                        target.sendMessage(ChatColor.RED + "✗ Время на принятие дуэли истекло!");
+                        target.sendMessage(Lang.get(plugin, "duel_timeout_target"));
                     }
 
                     Player challenger = duel.getChallenger();
                     if (challenger.isOnline()) {
-                        challenger.sendMessage(ChatColor.RED + "✗ " + target.getName() + " не принял вызов вовремя!");
+                        challenger.sendMessage(Lang.get(plugin, "duel_timeout_challenger", "%target%", target.getName()));
                     }
 
                     finishDuel(duel, DuelData.DuelState.CANCELLED);
@@ -482,15 +476,12 @@ public class DuelManager {
             @Override
             public void run() {
                 if (duel.getState() == DuelData.DuelState.ACTIVE) {
-                    // Время дуэли истекло - ничья
-                    sendMessageToPlayers(duel, "§6══════════════════════════════");
-                    sendMessageToPlayers(duel, "§e⚔ ВРЕМЯ ДУЭЛИ ИСТЕКЛО!");
-                    sendMessageToPlayers(duel, "§7Результат: §6НИЧЬЯ");
-                    sendMessageToPlayers(duel, "§6══════════════════════════════");
+                    sendMessageToPlayers(duel, Lang.get(plugin, "zone_exit_title"));
+                    sendMessageToPlayers(duel, Lang.get(plugin, "duel_time_expired"));
+                    sendMessageToPlayers(duel, Lang.get(plugin, "duel_draw"));
+                    sendMessageToPlayers(duel, Lang.get(plugin, "zone_exit_title"));
 
-                    // Оповещение сервера
-                    Bukkit.broadcastMessage("§7[PvP] §eДуэль между §a" + duel.getChallenger().getName() +
-                            "§e и §a" + duel.getTarget().getName() + "§e завершилась ничьей (время истекло)");
+                    Bukkit.broadcastMessage(Lang.get(plugin, "duel_draw_broadcast", "%p1%", duel.getChallenger().getName(), "%p2%", duel.getTarget().getName()));
 
                     finishDuel(duel, DuelData.DuelState.FINISHED);
                 }
@@ -699,7 +690,7 @@ public class DuelManager {
         }
 
         player.updateInventory();
-        player.sendMessage("§a✓ Инвентарь восстановлен");
+        player.sendMessage(Lang.get(plugin, "fix_restored"));
 
         // Логируем для отладки
         ItemStack[] restored = player.getInventory().getContents();
