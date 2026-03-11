@@ -44,13 +44,22 @@ public class PlayerDeathListener implements Listener {
             return;
         }
 
+        // Координаты и зона жертвы — для проверки и анти-дюпа
+        Location victimLoc = victim.getLocation();
+        var victimZone = plugin.getZoneManager().findZoneAtLocation(victimLoc);
+
+        // ===== АНТИ-ДЮП: при любой смерти В ПВП зоне предметы не выпадают =====
+        if (victimZone != null) {
+            event.setKeepInventory(true);
+            event.getDrops().clear();
+            event.setDroppedExp(0);
+        }
+
         // ===== ВТОРОЕ: ПРОВЕРКА PvP ЗОНЫ =====
         if (killer != null && killer != victim) {
             Location killerLoc = killer.getLocation();
-            Location victimLoc = victim.getLocation();
 
             var killerZone = plugin.getZoneManager().findZoneAtLocation(killerLoc);
-            var victimZone = plugin.getZoneManager().findZoneAtLocation(victimLoc);
 
             // Проверяем, что оба в зонах
             if (killerZone != null && victimZone != null) {
@@ -62,9 +71,7 @@ public class PlayerDeathListener implements Listener {
             }
         }
 
-        // ===== ТРЕТЬЕ: ЕСЛИ ЖЕРТВА БЫЛА В ЗОНЕ =====
-        Location victimLoc = victim.getLocation();
-        var victimZone = plugin.getZoneManager().findZoneAtLocation(victimLoc);
+        // ===== ТРЕТЬЕ: ЕСЛИ ЖЕРТВА БЫЛА В ЗОНЕ — восстановить PvP набор после респавна =====
         if (victimZone != null) {
             // Восстанавливаем PvP набор после респавна
             Bukkit.getScheduler().runTaskLater(plugin, () -> {

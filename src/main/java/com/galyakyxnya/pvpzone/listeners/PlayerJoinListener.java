@@ -8,6 +8,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 
+/**
+ * Обработка входа игрока. Минимальная логика — восстановление инвентаря из БД при релоге после краша
+ * выполняется в PlayerDataManager при загрузке данных.
+ */
 public class PlayerJoinListener implements Listener {
     private final Main plugin;
 

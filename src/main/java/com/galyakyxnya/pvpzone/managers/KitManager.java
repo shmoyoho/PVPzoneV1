@@ -12,8 +12,10 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 
 public class KitManager {
@@ -231,6 +233,11 @@ public class KitManager {
 
     public void reloadKits() {
         loadAllKits();
+    }
+
+    /** Список названий всех загруженных наборов (для таб-дополнения и выбора). */
+    public Set<String> getKitNames() {
+        return Collections.unmodifiableSet(kits.keySet());
     }
 
     public void loadKit() {

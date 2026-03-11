@@ -1,5 +1,5 @@
 name: PvpZone
-version: 1.0.0
+version: 1.1.1
 main: com.galyakyxnya.pvpzone.Main
 api-version: '1.21'
 author: Galyakyxnya
@@ -19,8 +19,13 @@ commands:
     permission: pvpzone.admin
 
   pvpkit:
-    description: Установить PvP набор
-    usage: /pvpkit
+    description: Создать набор из текущего инвентаря
+    usage: /pvpkit <название> | /pvpkit list
+    permission: pvpzone.admin
+
+  pvpsetkit:
+    description: Закрепить набор за зоной
+    usage: /pvpsetkit <зона> <набор>
     permission: pvpzone.admin
 
   pvptop:
@@ -35,7 +40,7 @@ commands:
 
   pvpzone:
     description: Управление PvP зонами
-    usage: /pvpzone [list|create|delete|info|bonuses|kit|reload|status|help]
+    usage: /pvpzone [list|create|delete|info|bonuses|reload|status|help]
     permission: pvpzone.admin
     aliases: [pvpz]
 

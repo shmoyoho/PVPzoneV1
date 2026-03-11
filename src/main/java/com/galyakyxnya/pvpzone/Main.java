@@ -60,9 +60,6 @@ public class Main extends JavaPlugin {
             this.playerMoveListener = new PlayerMoveListener(this);
             this.leaderEffectManager = new LeaderEffectManager(this);
 
-            // После инициализации менеджеров
-            this.leaderEffectManager = new LeaderEffectManager(this);
-
         } catch (Exception e) {
             getLogger().severe("Ошибка инициализации менеджеров!");
             getLogger().severe(e.getMessage());
@@ -111,45 +108,22 @@ public class Main extends JavaPlugin {
             }
         }
 
-        // 2. Сохраняем данные игроков
-        if (playerDataManager != null) {
-            try {
-                getLogger().info(ChatColor.YELLOW + "Сохранение данных игроков...");
-                playerDataManager.saveAllData();
-
-                // Даем небольшое время на асинхронное сохранение (но не слишком долго)
-                Thread.sleep(1500);
-
-            } catch (Exception e) {
-                getLogger().warning("Ошибка при сохранении данных: " + e.getMessage());
-            }
-        }
-
-        // 3. Закрываем соединение с базой данных
-        if (playerDataManager != null) {
-            try {
-                getLogger().info(ChatColor.YELLOW + "Закрытие базы данных...");
-                playerDataManager.closeDatabase();
-            } catch (Exception e) {
-                getLogger().warning("Ошибка при закрытии базы данных: " + e.getMessage());
-            }
-        }
-
-        // 4. Очищаем активные дуэли
+        // 2. Сначала завершаем все активные дуэли (восстановление инвентаря из DuelData)
         if (duelManager != null) {
             try {
                 getLogger().info(ChatColor.YELLOW + "Завершение активных дуэлей...");
-                // Можно добавить принудительное завершение всех дуэлей
+                for (com.galyakyxnya.pvpzone.models.DuelData duel : duelManager.getAllActiveDuels()) {
+                    duelManager.finishDuel(duel, com.galyakyxnya.pvpzone.models.DuelData.DuelState.FINISHED);
+                }
             } catch (Exception e) {
                 getLogger().warning("Ошибка при завершении дуэлей: " + e.getMessage());
             }
         }
 
-        // 5. Выходим из всех зон (на всякий случай)
-        if (zoneManager != null) {
+        // 3. Выходим из всех зон и восстанавливаем инвентарь (из PlayerData)
+        if (zoneManager != null && playerDataManager != null) {
             try {
                 getLogger().info(ChatColor.YELLOW + "Выход из всех PvP зон...");
-                // Восстанавливаем инвентарь всем онлайн игрокам
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     if (zoneManager.isPlayerInZone(player)) {
                         playerDataManager.restoreOriginalInventory(player);
@@ -161,7 +135,27 @@ public class Main extends JavaPlugin {
             }
         }
 
-        // 6. Сбрасываем все кэши и списки
+        // 4. Сохраняем данные игроков
+        if (playerDataManager != null) {
+            try {
+                getLogger().info(ChatColor.YELLOW + "Сохранение данных игроков...");
+                playerDataManager.saveAllData();
+            } catch (Exception e) {
+                getLogger().warning("Ошибка при сохранении данных: " + e.getMessage());
+            }
+        }
+
+        // 5. Закрываем соединение с базой данных (ожидание очереди внутри closeConnection)
+        if (playerDataManager != null) {
+            try {
+                getLogger().info(ChatColor.YELLOW + "Закрытие базы данных...");
+                playerDataManager.closeDatabase();
+            } catch (Exception e) {
+                getLogger().warning("Ошибка при закрытии базы данных: " + e.getMessage());
+            }
+        }
+
+        // 6. Сбрасываем трекер зон
         if (playerMoveListener != null) {
             try {
                 // Очищаем трекер зон
@@ -192,9 +186,19 @@ public class Main extends JavaPlugin {
         }
 
         if (getCommand("pvpkit") != null) {
-            getCommand("pvpkit").setExecutor(new PvpKitCommand(this));
+            PvpKitCommand pvpKitCommand = new PvpKitCommand(this);
+            getCommand("pvpkit").setExecutor(pvpKitCommand);
+            getCommand("pvpkit").setTabCompleter(pvpKitCommand);
         } else {
             getLogger().warning("Команда /pvpkit не найдена в plugin.yml!");
+        }
+
+        if (getCommand("pvpsetkit") != null) {
+            PvpSetKitCommand pvpSetKitCommand = new PvpSetKitCommand(this);
+            getCommand("pvpsetkit").setExecutor(pvpSetKitCommand);
+            getCommand("pvpsetkit").setTabCompleter(pvpSetKitCommand);
+        } else {
+            getLogger().warning("Команда /pvpsetkit не найдена в plugin.yml!");
         }
 
         if (getCommand("pvptop") != null) {
@@ -246,7 +250,7 @@ public class Main extends JavaPlugin {
             getLogger().warning("Команда /pvpshop не найдена в plugin.yml!");
         }
 
-        getLogger().info("Зарегистрировано команд: 11");
+        getLogger().info("Зарегистрировано команд: 12");
     }
 
     private void registerListeners() {

@@ -586,6 +586,11 @@ public class DuelManager {
         return activeDuels.get(duelId);
     }
 
+    /** Возвращает копию списка всех активных дуэлей (для завершения при отключении плагина). */
+    public java.util.Collection<DuelData> getAllActiveDuels() {
+        return new java.util.ArrayList<>(activeDuels.values());
+    }
+
     // ЗАВЕРШЕНИЕ ДУЭЛИ
     // ЗАВЕРШЕНИЕ ДУЭЛИ
     public void finishDuel(DuelData duel, DuelData.DuelState state) {
@@ -644,6 +649,19 @@ public class DuelManager {
             if (duel.getTargetLocation() != null) {
                 target.teleport(duel.getTargetLocation());
             }
+        } else {
+            // Игрок оффлайн — сохраняем инвентарь в БД для восстановления при входе
+            plugin.getPlayerDataManager().saveOriginalInventoryForOffline(
+                    target.getUniqueId(),
+                    duel.getTargetOriginalInventory(),
+                    duel.getTargetOriginalArmor());
+        }
+
+        if (!challenger.isOnline()) {
+            plugin.getPlayerDataManager().saveOriginalInventoryForOffline(
+                    challenger.getUniqueId(),
+                    duel.getChallengerOriginalInventory(),
+                    duel.getChallengerOriginalArmor());
         }
 
         // Очищаем данные дуэли

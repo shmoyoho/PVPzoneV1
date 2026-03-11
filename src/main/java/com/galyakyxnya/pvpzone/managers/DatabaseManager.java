@@ -229,6 +229,26 @@ public class DatabaseManager {
         return stmt.executeQuery();
     }
 
+    /** Загружает сохранённый инвентарь; возвращает [inventoryData, armorData] или null. Закрывает ресурсы внутри. */
+    public String[] getPlayerInventoryData(String playerUuid) {
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "SELECT inventory_data, armor_data FROM player_inventory WHERE player_uuid = ?")) {
+            stmt.setString(1, playerUuid);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    String inv = rs.getString("inventory_data");
+                    String arm = rs.getString("armor_data");
+                    if (inv != null || arm != null) {
+                        return new String[]{inv != null ? inv : "", arm != null ? arm : ""};
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Ошибка загрузки инвентаря: " + playerUuid, e);
+        }
+        return null;
+    }
+
     public void closeConnection() {
         try {
             // 1. Останавливаем обработку очереди

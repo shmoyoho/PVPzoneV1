@@ -64,14 +64,6 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
                 toggleBonuses(sender, args);
                 break;
 
-            case "kit":
-                if (!sender.hasPermission("pvpzone.admin")) {
-                    sender.sendMessage(ChatColor.RED + "У вас нет прав для использования этой команды!");
-                    return true;
-                }
-                handleZoneKit(sender, args);
-                break;
-
             case "reload":
                 if (!sender.hasPermission("pvpzone.admin")) {
                     sender.sendMessage(ChatColor.RED + "У вас нет прав для использования этой команды!");
@@ -311,25 +303,6 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
         plugin.getZoneManager().saveZones();
     }
 
-    private void handleZoneKit(CommandSender sender, String[] args) {
-        if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Использование: /pvpzone kit <set|save|info> <зона> [название_набора]");
-            return;
-        }
-
-        // Используем PvpZoneKitCommand
-        String[] newArgs = new String[args.length - 1];
-        newArgs[0] = args[1]; // subCommand (set/save/info)
-        newArgs[1] = args[2]; // zoneName
-
-        if (args.length > 3) {
-            newArgs[2] = args[3]; // kitName (для set)
-        }
-
-        PvpZoneKitCommand kitCommand = new PvpZoneKitCommand(plugin);
-        kitCommand.onCommand(sender, null, "pvpzone", newArgs);
-    }
-
     private void showStatus(CommandSender sender) {
         var zoneManager = plugin.getZoneManager();
 
@@ -355,19 +328,14 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(ChatColor.YELLOW + "Админ команды:");
             sender.sendMessage(ChatColor.GRAY + "  /pvpz1 " + ChatColor.WHITE + "- Установить первую точку");
             sender.sendMessage(ChatColor.GRAY + "  /pvpz2 " + ChatColor.WHITE + "- Установить вторую точку");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpkit " + ChatColor.WHITE + "- Установить основной PvP набор");
+            sender.sendMessage(ChatColor.GRAY + "  /pvpkit <название> " + ChatColor.WHITE + "- Создать набор из инвентаря");
+            sender.sendMessage(ChatColor.GRAY + "  /pvpsetkit <зона> <набор> " + ChatColor.WHITE + "- Закрепить набор за зоной");
             sender.sendMessage(ChatColor.GRAY + "  /pvpzone create <название> " +
                     ChatColor.WHITE + "- Создать зону");
             sender.sendMessage(ChatColor.GRAY + "  /pvpzone delete <название> " +
                     ChatColor.WHITE + "- Удалить зону");
             sender.sendMessage(ChatColor.GRAY + "  /pvpzone bonuses <название> <on|off> " +
                     ChatColor.WHITE + "- Вкл/выкл бонусы");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone kit set <зона> <название> " +
-                    ChatColor.WHITE + "- Установить набор для зоны");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone kit save <зона> " +
-                    ChatColor.WHITE + "- Сохранить набор для зоны");
-            sender.sendMessage(ChatColor.GRAY + "  /pvpzone kit info <зона> " +
-                    ChatColor.WHITE + "- Информация о наборе зоны");
             sender.sendMessage(ChatColor.GRAY + "  /pvpzone reload " +
                     ChatColor.WHITE + "- Перезагрузить плагин");
             sender.sendMessage("");
@@ -422,7 +390,6 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
             suggestions.add("delete");
             suggestions.add("info");
             suggestions.add("bonuses");
-            suggestions.add("kit");
             suggestions.add("reload");
             suggestions.add("status");
             suggestions.add("help");
@@ -431,7 +398,6 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
                 suggestions.remove("create");
                 suggestions.remove("delete");
                 suggestions.remove("bonuses");
-                suggestions.remove("kit");
                 suggestions.remove("reload");
             }
 
@@ -439,30 +405,14 @@ public class PvpZoneCommand implements CommandExecutor, TabCompleter {
             String subCommand = args[0].toLowerCase();
 
             if (subCommand.equals("delete") || subCommand.equals("info") ||
-                    subCommand.equals("bonuses") || subCommand.equals("kit")) {
+                    subCommand.equals("bonuses")) {
 
                 suggestions.addAll(plugin.getZoneManager().getZoneNames());
             }
 
-        } else if (args.length == 3) {
-            String subCommand = args[0].toLowerCase();
-
-            if (subCommand.equals("bonuses")) {
-                suggestions.add("on");
-                suggestions.add("off");
-            } else if (subCommand.equals("kit")) {
-                suggestions.add("set");
-                suggestions.add("save");
-                suggestions.add("info");
-            }
-
-        } else if (args.length == 4 && args[0].equalsIgnoreCase("kit") &&
-                args[2].equalsIgnoreCase("set")) {
-            // Предлагаем названия наборов
-            suggestions.add("default");
-            suggestions.add("arena");
-            suggestions.add("duel");
-            suggestions.add("tournament");
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("bonuses")) {
+            suggestions.add("on");
+            suggestions.add("off");
         }
 
         return suggestions;

@@ -3,7 +3,10 @@ package com.galyakyxnya.pvpzone.managers;
 import com.galyakyxnya.pvpzone.Main;
 import com.galyakyxnya.pvpzone.database.DatabaseManager;
 import com.galyakyxnya.pvpzone.models.PlayerData;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.io.BukkitObjectInputStream;
@@ -11,6 +14,7 @@ import org.bukkit.util.io.BukkitObjectOutputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Type;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
@@ -19,6 +23,9 @@ import java.util.logging.Level;
 import java.util.Base64;
 
 public class PlayerDataManager {
+    private static final Gson GSON = new Gson();
+    private static final Type LIST_MAP_TYPE = new TypeToken<List<Map<String, Object>>>() {}.getType();
+
     private final Main plugin;
     private final DatabaseManager databaseManager;
     private final Map<UUID, PlayerData> playerDataCache;
@@ -80,7 +87,7 @@ public class PlayerDataManager {
                 data.getPurchasedBonuses().put(bonusId, level);
             }
 
-            // Загружаем сохранённый инвентарь (для восстановления после перезахода)
+            // Загружаем сохранённый инвентарь (для восстановления после перезахода/краша)
             try (ResultSet invRs = databaseManager.getPlayerInventorySync(data.getPlayerId().toString())) {
                 if (invRs.next()) {
                     String invData = invRs.getString("inventory_data");
@@ -93,7 +100,6 @@ public class PlayerDataManager {
                     }
                 }
             }
-
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Ошибка загрузки данных игрока: " + data.getPlayerId(), e);
         }
@@ -224,26 +230,58 @@ public class PlayerDataManager {
         return topPlayers;
     }
 
-    // Метод для обновления инвентаря при входе в зону
+    // Сохранение инвентаря при входе в зону (в память и в БД для защиты от краша)
     public void saveOriginalInventory(Player player) {
         PlayerData data = getPlayerData(player);
-        // Клонируем массивы, чтобы не было ссылок
-        data.setOriginalInventory(player.getInventory().getContents().clone());
-        data.setOriginalArmor(player.getInventory().getArmorContents().clone());
+        ItemStack[] inv = player.getInventory().getContents().clone();
+        ItemStack[] armor = player.getInventory().getArmorContents().clone();
+        data.setOriginalInventory(inv);
+        data.setOriginalArmor(armor);
+        persistInventoryToDb(data.getPlayerId().toString(), inv, armor);
     }
 
-    // Метод для восстановления инвентаря при выходе из зоны
+    /** Сохраняет инвентарь оффлайн-игрока в кэш и БД (например, вышедшего во время дуэли). */
+    public void saveOriginalInventoryForOffline(UUID playerId, ItemStack[] inv, ItemStack[] armor) {
+        PlayerData data = playerDataCache.get(playerId);
+        if (data == null) {
+            data = new PlayerData(playerId);
+            playerDataCache.put(playerId, data);
+        }
+        data.setOriginalInventory(inv != null ? inv : new ItemStack[0]);
+        data.setOriginalArmor(armor != null ? armor : new ItemStack[0]);
+        persistInventoryToDb(playerId.toString(), inv, armor);
+    }
+
+    private void persistInventoryToDb(String playerUuid, ItemStack[] inv, ItemStack[] armor) {
+        String invStr = serializeInventory(inv != null ? inv : new ItemStack[0]);
+        String armorStr = serializeInventory(armor != null ? armor : new ItemStack[4]);
+        if (invStr != null && armorStr != null) {
+            databaseManager.savePlayerInventoryAsync(playerUuid, invStr, armorStr);
+        }
+    }
+
+    // Восстановление инвентаря при выходе из зоны. Использует клоны, чтобы не затронуть сохранённые данные.
     public void restoreOriginalInventory(Player player) {
         PlayerData data = getPlayerData(player);
+        ItemStack[] inv = data.getOriginalInventory();
+        ItemStack[] armor = data.getOriginalArmor();
 
-        if (data.getOriginalInventory().length > 0) {
-            player.getInventory().setContents(data.getOriginalInventory());
+        if (inv != null && inv.length > 0) {
+            ItemStack[] clone = new ItemStack[inv.length];
+            for (int i = 0; i < inv.length; i++) {
+                clone[i] = inv[i] != null ? inv[i].clone() : null;
+            }
+            player.getInventory().setContents(clone);
         } else {
             player.getInventory().clear();
         }
 
-        if (data.getOriginalArmor().length > 0) {
-            player.getInventory().setArmorContents(data.getOriginalArmor());
+        if (armor != null && armor.length > 0) {
+            ItemStack[] armorClone = new ItemStack[armor.length];
+            for (int i = 0; i < armor.length; i++) {
+                armorClone[i] = armor[i] != null ? armor[i].clone() : null;
+            }
+            player.getInventory().setArmorContents(armorClone);
         } else {
             player.getInventory().setArmorContents(new ItemStack[4]);
         }
@@ -263,5 +301,48 @@ public class PlayerDataManager {
 
     public void closeDatabase() {
         databaseManager.closeConnection();
+    }
+
+    private String serializeInventory(ItemStack[] arr) {
+        if (arr == null) return "[]";
+        List<Map<String, Object>> list = new ArrayList<>(arr.length);
+        for (ItemStack item : arr) {
+            if (item != null && item.getType() != Material.AIR && !item.isEmpty()) {
+                list.add(item.serialize());
+            } else {
+                list.add(null);
+            }
+        }
+        return GSON.toJson(list);
+    }
+
+    private ItemStack[] deserializeInventory(String json, int size) {
+        if (json == null || json.isEmpty() || "[]".equals(json.trim())) return null;
+        try {
+            List<Map<String, Object>> list = GSON.fromJson(json, LIST_MAP_TYPE);
+            if (list == null) return null;
+            ItemStack[] out = new ItemStack[size];
+            for (int i = 0; i < Math.min(list.size(), size); i++) {
+                Map<String, Object> map = list.get(i);
+                if (map != null && !map.isEmpty()) {
+                    Map<String, Object> fixed = fixMapForDeserialize(map);
+                    out[i] = ItemStack.deserialize(fixed);
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Ошибка десериализации инвентаря", e);
+            return null;
+        }
+    }
+
+    private Map<String, Object> fixMapForDeserialize(Map<String, Object> map) {
+        Map<String, Object> out = new HashMap<>(map);
+        for (Map.Entry<String, Object> e : map.entrySet()) {
+            if (e.getValue() instanceof Number && !(e.getValue() instanceof Integer)) {
+                out.put(e.getKey(), ((Number) e.getValue()).intValue());
+            }
+        }
+        return out;
     }
 }
